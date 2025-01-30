@@ -19,6 +19,7 @@ def format_reasoning_response(thinking_content):
         thinking_content.replace("<think>\n\n</think>", "")
         .replace("<think>", "")
         .replace("</think>", "")
+        .strip()
     )
 
 def display_message(message):
@@ -36,19 +37,22 @@ def display_assistant_message(content):
     think_match = re.search(pattern, content, re.DOTALL)
     
     if think_match:
-        think_content = think_match.group(0)
-        response_content = content.replace(think_content, "")
+        think_content = think_match.group(1)
+        response_content = content.replace(f"<think>{think_content}</think>", "")
         think_content = format_reasoning_response(think_content)
         
-        with st.expander("Thinking Process", expanded=False):
-            st.markdown(think_content)
+        if think_content:
+            with st.expander("Thinking Process", expanded=False):
+                st.markdown(think_content)
         st.markdown(response_content.strip())
     else:
         st.markdown(content)
 
 def generate_deepseek_response():
     """Generate response using DeepSeek R1 model"""
-    dialogue_history = "\n\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages])
+    dialogue_history = "\n\n".join(
+        [f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages]
+    )
     
     return replicate.stream(
         "deepseek-ai/deepseek-r1",
@@ -89,6 +93,11 @@ def process_response_phase(response):
         text = str(item)
         response_content += text
         response_placeholder.markdown(response_content.strip())
+    
+    # Clean and punctuate response
+    response_content = response_content.strip()
+    if response_content and not response_content.endswith(('.', '!', '?')):
+        response_content += '.'
     
     return response_content
 
@@ -139,10 +148,7 @@ if prompt := st.chat_input(disabled=not replicate_api):
             response_content = process_response_phase(response_stream)
             
             # Combine and format final response
-            final_response = f"{response_content.strip()}<think>{format_reasoning_response(thinking_content)}</think>"
-            
-            if not final_response.endswith(('.', '!', '?')):
-                final_response += '.'
+            final_response = f"{response_content}<think>{thinking_content}</think>"
             
             st.session_state.messages.append({"role": "assistant", "content": final_response})
             st.rerun()
