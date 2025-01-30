@@ -38,8 +38,9 @@ def process_response(response, auto_collapse=True):
     answer_text = ''
     is_thinking = False
     
-    thinking_container = st.empty()
-    answer_container = st.empty()
+    # Create containers that persist
+    thinking_placeholder = st.empty()
+    answer_placeholder = st.empty()
 
     for item in response:
         text = str(item)
@@ -53,18 +54,19 @@ def process_response(response, auto_collapse=True):
         if is_thinking:
             if '</think>' in text:
                 is_thinking = False
+                # Store thinking content in session state
+                st.session_state.thinking_content = thinking_text
                 # If auto-collapse is enabled, show collapsed expander
-                if auto_collapse:
-                    with thinking_container.expander("Thinking Process", expanded=False):
-                        st.markdown(thinking_text)
+                with thinking_placeholder:
+                    st.expander("Thinking Process", expanded=not auto_collapse).markdown(thinking_text)
             else:
                 thinking_text += text
-                with thinking_container.expander("Thinking Process", expanded=True):
-                    st.markdown(thinking_text)
+                with thinking_placeholder:
+                    st.expander("Thinking Process", expanded=True).markdown(thinking_text)
         else:
             if '<think>' not in text and '</think>' not in text:
                 answer_text += text
-                answer_container.markdown(answer_text)
+                answer_placeholder.markdown(answer_text)
                 
     return full_response
 
