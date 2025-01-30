@@ -48,35 +48,55 @@ def process_response(response, auto_collapse=True):
     answer_text = ''
     is_thinking = False
     
-    thinking_container = st.empty()
-    answer_container = st.empty()
-
+    # Use a container for the assistant's entire response
+    response_container = st.empty()
+    
     for item in response:
         text = str(item)
         full_response += text
         
-        if not is_thinking and '<think>' in text:
+        if '<think>' in text:
             is_thinking = True
+            text = text.replace('<think>', '')
+            
+        if '</think>' in text:
+            is_thinking = False
+            text = text.replace('</think>', '')
+            thinking_text += text  # Add final part before closing tag
+            
+            # Store thinking process in session state
+            st.session_state.thinking_content = thinking_text
             thinking_text = ''
-            text = text.replace('<think>', '')  # Strip out <think> tag
-        
+            
         if is_thinking:
-            if '</think>' in text:
-                is_thinking = False
-                # If auto-collapse is enabled, show collapsed expander
-                if auto_collapse:
-                    with thinking_container.expander("Thinking Process", expanded=False):
-                        st.markdown(thinking_text)
-            else:
-                thinking_text += text
-                with thinking_container.expander("Thinking Process", expanded=True):
-                    st.markdown(thinking_text)
+            thinking_text += text
         else:
-            if '<think>' not in text and '</think>' not in text:
-                answer_text += text
-                answer_container.markdown(answer_text)
-                
+            answer_text += text
+        
+        # Update display with both components
+        with response_container.container():
+            if st.session_state.thinking_content:
+                with st.expander("Thinking Process", expanded=not auto_collapse):
+                    st.markdown(st.session_state.thinking_content)
+            st.markdown(answer_text)
+    
     return full_response
+
+# Message display logic
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        # Parse stored messages for think tags
+        content = message["content"]
+        
+        if '<think>' in content and '</think>' in content:
+            think_content = content.split('<think>')[1].split('</think>')[0]
+            answer_content = content.split('</think>')[-1]
+            
+            with st.expander("Thinking Process", expanded=False):
+                st.markdown(think_content)
+            st.markdown(answer_content)
+        else:
+            st.markdown(content)
 
 # Initialize session state for thinking content
 if "thinking_content" not in st.session_state:
