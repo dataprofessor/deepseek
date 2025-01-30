@@ -1,4 +1,4 @@
-# 🦙💬 DeepSeek-R1 Chat
+# 🦙💬 DeepSeek R1 Chatbot
 
 This chatbot is created using the open-source Llama 2 LLM model from Meta.
 
