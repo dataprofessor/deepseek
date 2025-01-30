@@ -80,44 +80,46 @@ if prompt := st.chat_input(disabled=not replicate_api):
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response = generate_deepseek_response(prompt)
-        full_response = ''
-        thinking_text = ''
-        answer_text = ''
-        is_thinking = False
-
         # Create containers
         thinking_container = st.empty()
         answer_container = st.empty()
 
-        def process_stream():
-            nonlocal full_response, thinking_text, answer_text, is_thinking
-            
-            for item in response:
-                full_response += str(item)
-                
-                if '<think>' in item:
-                    is_thinking = True
-                    continue
+        class StreamProcessor:
+            def __init__(self):
+                self.full_response = ''
+                self.thinking_text = ''
+                self.answer_text = ''
+                self.is_thinking = False
+
+            def process_stream(self):
+                for item in response:
+                    self.full_response += str(item)
                     
-                if is_thinking and '</think>' not in item:
-                    thinking_text = item
-                    yield thinking_text
-                    
-                if '</think>' in item:
-                    is_thinking = False
-                    continue
-                    
-                if not is_thinking and item.strip():
-                    answer_text += item
-                    answer_container.markdown(answer_text)
+                    if '<think>' in item:
+                        self.is_thinking = True
+                        continue
+                        
+                    if self.is_thinking and '</think>' not in item:
+                        self.thinking_text = item
+                        yield self.thinking_text
+                        
+                    if '</think>' in item:
+                        self.is_thinking = False
+                        continue
+                        
+                    if not self.is_thinking and item.strip():
+                        self.answer_text += item
+                        answer_container.markdown(self.answer_text)
+
+        processor = StreamProcessor()
 
         # Display thinking process in an expander
         with thinking_container.expander("Thinking Process", expanded=True):
-            st.write_stream(process_stream())
+            st.write_stream(processor.process_stream())
 
         # Final answer display
-        if answer_text:
-            answer_container.markdown(answer_text)
+        if processor.answer_text:
+            answer_container.markdown(processor.answer_text)
 
-        message = {"role": "assistant", "content": full_response}
+        message = {"role": "assistant", "content": processor.full_response}
         st.session_state.messages.append(message)
