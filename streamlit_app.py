@@ -98,7 +98,22 @@ with st.sidebar:
     st.session_state.presence_penalty = st.slider('Presence Penalty', -1.0, 1.0, 0.0)
     st.session_state.frequency_penalty = st.slider('Frequency Penalty', -1.0, 1.0, 0.0)
 
-# Display all messages
+# Handle user input
+if prompt := st.chat_input(disabled=not replicate_api):
+    clean_prompt = prompt.strip()
+    
+    if clean_prompt:
+        # Add user message to session state
+        st.session_state.messages.append({"role": "user", "content": clean_prompt})
+        
+        # Generate assistant response
+        with st.chat_message("assistant"):
+            response = generate_deepseek_response()
+            processed_response = process_response(response)
+            # Append assistant's message after processing
+            st.session_state.messages.append({"role": "assistant", "content": processed_response})
+
+# Display all messages after processing input
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         content = message["content"]
@@ -113,19 +128,6 @@ for message in st.session_state.messages:
                 st.markdown(think_part)
         else:
             st.markdown(content)
-
-# Handle user input
-if prompt := st.chat_input(disabled=not replicate_api):
-    clean_prompt = prompt.strip()
-    
-    if clean_prompt:
-        st.session_state.messages.append({"role": "user", "content": clean_prompt})
-        
-        # Generate assistant response
-        with st.chat_message("assistant"):
-            response = generate_deepseek_response()
-            processed_response = process_response(response)
-            st.session_state.messages.append({"role": "assistant", "content": processed_response})
 
 # Clear chat button
 with st.sidebar:
