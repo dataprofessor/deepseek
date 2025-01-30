@@ -34,19 +34,20 @@ with st.sidebar:
 if "messages" not in st.session_state.keys():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
 
-# Display or clear chat messages
+# Display chat messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+    if 'current_response' in st.session_state:
+        del st.session_state.current_response
 
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
 # Function for generating DeepSeek response
 def generate_deepseek_response(prompt_input):
-    # Format the conversation history
     string_dialogue = ""
     for dict_message in st.session_state.messages:
         if dict_message["role"] == "user":
@@ -76,60 +77,47 @@ if prompt := st.chat_input(disabled=not replicate_api):
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = generate_deepseek_response(prompt)
-            full_response = ''
-            thinking_content = ''
-            answer_content = ''
+        if 'current_response' not in st.session_state:
+            st.session_state.current_response = {"thinking": "", "answer": ""}
             
-            # Create expanders for thinking and answer
-            with st.expander("Thinking...", expanded=True):
-                thinking_placeholder = st.empty()
-            
-            with st.expander("Generated answer", expanded=True):
-                answer_placeholder = st.empty()
-            
-            # Create a container for the expanders
-            if 'expander_container' not in st.session_state:
-                st.session_state.expander_container = st.container()
-
-            # Clear previous expanders by clearing the container
-            st.session_state.expander_container.empty()
-            
-            # Create expanders in the container
-            with st.session_state.expander_container:
-                thinking_expander = st.expander("Thinking...", expanded=True)
-                with thinking_expander:
+        response_container = st.container()
+        with response_container:
+            with st.spinner("Processing..."):
+                # Create expanders
+                with st.expander("Thinking...", expanded=True) as thinking_expander:
                     thinking_placeholder = st.empty()
                 
-                answer_expander = st.expander("Generated answer", expanded=False)
-                with answer_expander:
+                with st.expander("Generated answer", expanded=False) as answer_expander:
                     answer_placeholder = st.empty()
-            
-            is_thinking = True  # Track which phase we're in
-            
-            # Process the streaming response
-            for item in response:
-                full_response += str(item)
                 
-                # Use regex to extract content between think tags
-                think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
-                if think_match and is_thinking:
-                    thinking_content = think_match.group(1).strip()
-                    thinking_placeholder.markdown(thinking_content)
+                # Get the streamed response
+                response = generate_deepseek_response(prompt)
+                full_response = ''
+                is_thinking = True
                 
-                # Get the answer content (everything after </think>)
-                answer_parts = full_response.split('</think>')
-                if len(answer_parts) > 1 and answer_parts[1].strip():
-                    if is_thinking:
-                        # Transition from thinking to answer phase
-                        is_thinking = False
-                        thinking_expander.expanded = False
-                        answer_expander.expanded = True
+                for item in response:
+                    full_response += str(item)
                     
-                    answer_content = answer_parts[1].strip()
-                    answer_placeholder.markdown(answer_content)
+                    # Handle thinking phase
+                    think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
+                    if think_match and is_thinking:
+                        thinking_content = think_match.group(1).strip()
+                        thinking_placeholder.markdown(thinking_content)
+                        st.session_state.current_response["thinking"] = thinking_content
+                    
+                    # Handle answer phase
+                    answer_parts = full_response.split('</think>')
+                    if len(answer_parts) > 1 and answer_parts[1].strip():
+                        if is_thinking:
+                            is_thinking = False
+                            thinking_expander.expanded = False
+                            answer_expander.expanded = True
+                        
+                        answer_content = answer_parts[1].strip()
+                        answer_placeholder.markdown(answer_content)
+                        st.session_state.current_response["answer"] = answer_content
                 
-            # Store the full response in session state
-            message = {"role": "assistant", "content": full_response}
-            st.session_state.messages.append(message)
+                # Store the full response
+                message = {"role": "assistant", "content": full_response}
+                st.session_state.messages.append(message)
+                del st.session_state.current_response
