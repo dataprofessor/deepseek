@@ -1,6 +1,7 @@
 import streamlit as st
 import replicate
 import os
+import re
 
 # App title
 st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
@@ -77,11 +78,33 @@ if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = generate_deepseek_response(prompt)
-            placeholder = st.empty()
             full_response = ''
+            thinking_content = ''
+            answer_content = ''
+            
+            # Create expanders for thinking and answer
+            with st.expander("Thinking..."):
+                thinking_placeholder = st.empty()
+            
+            with st.expander("Generated answer"):
+                answer_placeholder = st.empty()
+            
+            # Process the streaming response
             for item in response:
                 full_response += str(item)
-                placeholder.markdown(full_response)
-            placeholder.markdown(full_response)
-    message = {"role": "assistant", "content": full_response}
-    st.session_state.messages.append(message)
+                
+                # Use regex to extract content between think tags
+                think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
+                if think_match:
+                    thinking_content = think_match.group(1).strip()
+                    thinking_placeholder.markdown(thinking_content)
+                
+                # Get the answer content (everything after </think>)
+                answer_parts = full_response.split('</think>')
+                if len(answer_parts) > 1:
+                    answer_content = answer_parts[1].strip()
+                    answer_placeholder.markdown(answer_content)
+                
+            # Store the full response in session state
+            message = {"role": "assistant", "content": full_response}
+            st.session_state.messages.append(message)
