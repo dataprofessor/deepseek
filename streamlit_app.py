@@ -41,8 +41,6 @@ for message in st.session_state.messages:
 
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
-    if 'current_response' in st.session_state:
-        del st.session_state.current_response
 
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
@@ -77,74 +75,40 @@ if prompt := st.chat_input(disabled=not replicate_api):
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
-        if 'current_response' not in st.session_state:
-            st.session_state.current_response = {"thinking": "", "answer": ""}
-            
         response_container = st.container()
         with response_container:
-            with st.spinner("Processing..."):
-                # Create expanders once
-                with st.expander("Thinking...", expanded=True) as thinking_expander:
-                    thinking_placeholder = st.empty()
-                
-                with st.expander("Generated answer", expanded=False) as answer_expander:
-                    answer_placeholder = st.empty()
+            # Create expanders once
+            with st.expander("Thinking...", expanded=True) as thinking_expander:
+                thinking_placeholder = st.empty()
+            
+            with st.expander("Generated answer", expanded=False) as answer_expander:
+                answer_placeholder = st.empty()
 
-                # Get the streamed response
-                response = generate_deepseek_response(prompt)
-                full_response = ''
-                is_thinking = True
+            # Get the streamed response
+            response = generate_deepseek_response(prompt)
+            full_response = ''
+            is_thinking = True
+            
+            for item in response:
+                full_response += str(item)
                 
-                for item in response:
-                    full_response += str(item)
+                # Handle thinking phase
+                think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
+                if think_match and is_thinking:
+                    thinking_content = think_match.group(1).strip()
+                    thinking_placeholder.markdown(thinking_content)
+                
+                # Handle answer phase
+                answer_parts = full_response.split('</think>')
+                if len(answer_parts) > 1 and answer_parts[1].strip():
+                    if is_thinking:
+                        is_thinking = False
+                        # Clear thinking content when moving to answer phase
+                        thinking_placeholder.empty()
                     
-                    # Handle thinking phase
-                    think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
-                    if think_match and is_thinking:
-                        thinking_content = think_match.group(1).strip()
-                        thinking_placeholder.markdown(thinking_content)
-                    
-                    # Handle answer phase
-                    answer_parts = full_response.split('</think>')
-                    if len(answer_parts) > 1 and answer_parts[1].strip():
-                        if is_thinking:
-                            is_thinking = False
-                            # Clear thinking content when moving to answer phase
-                            thinking_placeholder.empty()
-                        
-                        answer_content = answer_parts[1].strip()
-                        answer_placeholder.markdown(answer_content)
-                
-                # Store the full response
-                message = {"role": "assistant", "content": full_response}
-                st.session_state.messages.append(message)        
-                for item in response:
-                    full_response += str(item)
-                    
-                    # Handle thinking phase
-                    think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
-                    if think_match and is_thinking:
-                        thinking_content = think_match.group(1).strip()
-                        thinking_placeholder.markdown(thinking_content)
-                    
-                    # Handle answer phase
-                    answer_parts = full_response.split('</think>')
-                    if len(answer_parts) > 1 and answer_parts[1].strip():
-                        if is_thinking:
-                            is_thinking = False
-                            thinking_placeholder.empty()
-                        
-                        answer_content = answer_parts[1].strip()
-                        answer_placeholder.markdown(answer_content)
-                
-                # Store the full response
-                message = {"role": "assistant", "content": full_response}
-                st.session_state.messages.append(message)
-                
-                # Clean up
-                del st.session_state.current_response
-                
-                # Store the full response
-                message = {"role": "assistant", "content": full_response}
-                st.session_state.messages.append(message)
-                del st.session_state.current_response
+                    answer_content = answer_parts[1].strip()
+                    answer_placeholder.markdown(answer_content)
+            
+            # Store the full response
+            message = {"role": "assistant", "content": full_response}
+            st.session_state.messages.append(message)
