@@ -11,11 +11,10 @@ if "messages" not in st.session_state:
 
 # Helper functions
 def clear_chat_history():
-    """Clear chat history"""
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
 
 def generate_deepseek_response():
-    """Generate response using DeepSeek-R1 model"""
+    """Generate response using DeepSeek R1 model"""
     dialogue_history = "\n\n".join([msg["content"] for msg in st.session_state.messages])
     return replicate.stream(
         "deepseek-ai/deepseek-r1",
@@ -30,15 +29,15 @@ def generate_deepseek_response():
     )
 
 def process_response(response):
-    """Process streaming response with organized final processing"""
+    """Process streaming response with answer-first display"""
     full_response = ""
     thinking_content = ""
     answer_content = ""
     is_thinking = False
     
-    # Containers for real-time display
-    think_container = st.empty()
-    answer_container = st.empty()
+    # Containers for display ordering
+    answer_container = st.empty()  # Primary answer display
+    think_container = st.empty()   # Thinking process below
 
     # Process stream chunks
     for item in response:
@@ -68,16 +67,16 @@ def process_response(response):
             answer_content += clean_text
             answer_container.markdown(answer_content)
 
-    # Clean and format final output
+    # Final answer processing
     final_answer = answer_content.rstrip(' .')
     
     # Ensure proper sentence termination
     if final_answer and not final_answer.endswith(('.', '!', '?')):
         final_answer += '.'
     
-    # Structure output with thinking content
+    # Structure output with answer first
     if thinking_content.strip():
-        return f"<think>{thinking_content.strip()}</think>{final_answer}"
+        return f"{final_answer}<think>{thinking_content.strip()}</think>"
     return final_answer
 
 # Sidebar configuration
@@ -110,13 +109,18 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         content = message["content"]
         
-        if "<think>" in content and "</think>" in content:
-            think_part = content.split("<think>")[1].split("</think>")[0]
-            answer_part = content.split("</think>")[-1]
+        if "<think>" in content:
+            # Split answer and thinking process
+            parts = content.split("<think>")
+            answer_part = parts[0]
+            think_part = parts[1].split("</think>")[0]
             
+            # Display answer first
+            st.markdown(answer_part)
+            
+            # Show thinking process in expander
             with st.expander("Thinking Process", expanded=False):
                 st.markdown(think_part)
-            st.markdown(answer_part)
         else:
             st.markdown(content)
 
@@ -139,7 +143,7 @@ if st.session_state.messages[-1]["role"] == "user":
         processed_response = process_response(response)
         st.session_state.messages.append({"role": "assistant", "content": processed_response})
 
-# Clear chat button (rendered after all processing)
+# Clear chat button
 with st.sidebar:
     st.button(
         'Clear Chat History',
