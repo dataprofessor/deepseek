@@ -27,16 +27,11 @@ def display_message(message):
 
 def display_assistant_message(content):
     """Parse and display assistant message with thinking process."""
-    # Extract all thinking blocks
     think_blocks = re.findall(r'<think>(.*?)</think>', content, re.DOTALL)
-    
-    # Remove thinking blocks from main content
     main_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
     
-    # Display main response
     st.markdown(main_content)
     
-    # Display thinking blocks in expanders
     for idx, think_content in enumerate(think_blocks, 1):
         cleaned_think = format_reasoning_response(think_content)
         if cleaned_think:
@@ -59,12 +54,10 @@ def process_stream(response_stream):
         
         while True:
             if not in_think_block:
-                # Look for think tag start
                 start_idx = buffer.find("<think>")
                 if start_idx != -1:
-                    # Capture content before think tag
                     response_content.append(buffer[:start_idx])
-                    buffer = buffer[start_idx+7:]  # 7 is len("<think>")
+                    buffer = buffer[start_idx+7:]
                     in_think_block = True
                     think_expander = st.expander("Thinking...", expanded=True)
                     think_placeholder = think_expander.empty()
@@ -73,21 +66,17 @@ def process_stream(response_stream):
                     buffer = ""
                     break
             else:
-                # Look for think tag end
                 end_idx = buffer.find("</think>")
                 if end_idx != -1:
-                    # Capture content within think tag
                     thinking_content.append(buffer[:end_idx])
-                    buffer = buffer[end_idx+8:]  # 8 is len("</think>")
+                    buffer = buffer[end_idx+8:]
                     in_think_block = False
-                    if think_expander:
-                        think_expander.update(expanded=False)
+                    # Remove the update() call that was here
                 else:
                     thinking_content.append(buffer)
                     buffer = ""
                     break
             
-            # Update displays
             current_response = "".join(response_content).strip()
             if current_response:
                 response_placeholder.markdown(current_response)
@@ -96,24 +85,21 @@ def process_stream(response_stream):
             if current_think and think_placeholder:
                 think_placeholder.markdown(current_think)
 
-    # Handle remaining buffer
     if buffer:
         if in_think_block:
             thinking_content.append(buffer)
         else:
             response_content.append(buffer)
     
-    # Finalize displays
     final_response = "".join(response_content).strip()
     final_think = "".join(thinking_content).strip()
     
-    # Ensure proper punctuation
     if final_response and final_response[-1] not in {'.', '!', '?'}:
         final_response += '.'
     
     return final_response, final_think
 
-# Sidebar configuration
+# Sidebar configuration remains the same
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
     
@@ -136,11 +122,11 @@ with st.sidebar:
     st.session_state.presence_penalty = st.slider('Presence Penalty', -1.0, 1.0, 0.0)
     st.session_state.frequency_penalty = st.slider('Frequency Penalty', -1.0, 1.0, 0.0)
 
-# Display all messages
+# Display messages
 for message in st.session_state.messages:
     display_message(message)
 
-# Handle user input
+# Handle input
 if prompt := st.chat_input(disabled=not replicate_api):
     clean_prompt = prompt.strip()
     
@@ -166,7 +152,6 @@ if prompt := st.chat_input(disabled=not replicate_api):
             
             response_content, thinking_content = process_stream(response_stream)
             
-            # Format final response
             final_content = response_content
             if thinking_content:
                 final_content += f"<think>{thinking_content}</think>"
@@ -174,7 +159,7 @@ if prompt := st.chat_input(disabled=not replicate_api):
             st.session_state.messages.append({"role": "assistant", "content": final_content})
             st.rerun()
 
-# Clear chat button
+# Clear button
 with st.sidebar:
     st.button(
         'Clear Chat History',
