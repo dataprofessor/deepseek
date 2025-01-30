@@ -103,8 +103,13 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 if len(answer_parts) > 1 and answer_parts[1].strip():
                     if is_thinking:
                         is_thinking = False
-                        # Clear thinking content when moving to answer phase
-                        thinking_placeholder.empty()
+                        # Re-create expanders with new states but keep content
+                        response_container.empty()
+                        with response_container:
+                            with st.expander("Thinking...", expanded=False):
+                                st.markdown(thinking_content)
+                            with st.expander("Generated answer", expanded=True):
+                                answer_placeholder = st.empty()
                     
                     answer_content = answer_parts[1].strip()
                     answer_placeholder.markdown(answer_content)
