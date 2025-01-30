@@ -28,7 +28,7 @@ def generate_deepseek_response():
     )
 
 def process_response(response):
-    """Process streaming response with strict formatting"""
+    """Process streaming response with enhanced cleaning"""
     full_response = ""
     thinking_content = ""
     answer_content = ""
@@ -41,6 +41,7 @@ def process_response(response):
         text = str(item)
         full_response += text
         
+        # Handle thinking tags
         if "<think>" in text.lower():
             is_thinking = True
             text = text.replace("<think>", "").replace("</think>", "")
@@ -58,13 +59,21 @@ def process_response(response):
             with think_container.expander("Thinking Process", expanded=True):
                 st.markdown(thinking_content)
         else:
-            clean_text = text.replace("#", "").replace("---", "").strip()
-            answer_content += clean_text + " "
-            answer_container.markdown(answer_content.strip())
+            # Enhanced cleaning for answer content
+            clean_text = text.replace("#", "").replace("---", "").replace("- ", "").strip(' .\n\t')
+            if clean_text:
+                answer_content += clean_text + " "
+                answer_container.markdown(answer_content.strip())
 
+    # Final answer processing
     final_answer = ' '.join(answer_content.strip().split())
-    if final_answer and not final_answer.endswith(('.', '!', '?')):
-        final_answer += '.'
+    
+    # Ensure proper punctuation
+    if final_answer:
+        if not final_answer[-1] in {'.', '!', '?'}:
+            final_answer += '.'
+        # Remove leading punctuation
+        final_answer = final_answer.lstrip('.- ').strip()
     
     return f"{final_answer}<think>{thinking_content.strip()}</think>" if thinking_content.strip() else final_answer
 
@@ -112,10 +121,9 @@ if prompt := st.chat_input(disabled=not replicate_api):
     clean_prompt = prompt.strip()
     
     if clean_prompt and any(c.isalnum() for c in clean_prompt):
-        # Append user message to session state
         st.session_state.messages.append({"role": "user", "content": clean_prompt})
         
-        # Generate assistant response
+        # Generate response immediately after user input
         with st.chat_message("assistant"):
             response = generate_deepseek_response()
             processed_response = process_response(response)
