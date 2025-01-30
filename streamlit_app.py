@@ -45,7 +45,7 @@ st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
 # Function for generating Deepseek response
 def generate_deepseek_response(prompt_input):
-    # Format the conversation history in a cleaner way for Deepseek
+    # Format the conversation history
     string_dialogue = ""
     for dict_message in st.session_state.messages:
         if dict_message["role"] == "user":
