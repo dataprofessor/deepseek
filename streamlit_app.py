@@ -27,15 +27,20 @@ def display_message(message):
 
 def display_assistant_message(content):
     """Parse and display assistant message with thinking process."""
+    # Extract all thinking blocks using regex
     think_blocks = re.findall(r'<think>(.*?)</think>', content, re.DOTALL)
+    
+    # Remove thinking blocks from main content
     main_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
     
+    # Display main response
     st.markdown(main_content)
     
-    for idx, think_content in enumerate(think_blocks, 1):
+    # Display thinking blocks in expanders
+    for think_content in think_blocks:
         cleaned_think = format_reasoning_response(think_content)
         if cleaned_think:
-            with st.expander(f"Thinking Process ({idx})", expanded=False):
+            with st.expander("Thinking Process", expanded=False):
                 st.markdown(cleaned_think)
 
 def process_stream(response_stream):
@@ -45,64 +50,71 @@ def process_stream(response_stream):
     thinking_content = []
     response_content = []
     
-    think_expander = None
     response_placeholder = st.empty()
-    think_placeholder = None
+    think_container = None
 
     for item in response_stream:
         buffer += str(item)
         
         while True:
             if not in_think_block:
+                # Look for think tag start
                 start_idx = buffer.find("<think>")
                 if start_idx != -1:
+                    # Capture content before think tag
                     response_content.append(buffer[:start_idx])
-                    buffer = buffer[start_idx+7:]
+                    buffer = buffer[start_idx+7:]  # 7 is length of "<think>"
                     in_think_block = True
-                    think_expander = st.expander("Thinking...", expanded=True)
-                    think_placeholder = think_expander.empty()
+                    think_container = st.expander("Thinking...", expanded=True)
                 else:
                     response_content.append(buffer)
                     buffer = ""
                     break
             else:
+                # Look for think tag end
                 end_idx = buffer.find("</think>")
                 if end_idx != -1:
+                    # Capture content within think tag
                     thinking_content.append(buffer[:end_idx])
-                    buffer = buffer[end_idx+8:]
+                    buffer = buffer[end_idx+8:]  # 8 is length of "</think>"
                     in_think_block = False
-                    # Remove the update() call that was here
+                    think_container = None
                 else:
                     thinking_content.append(buffer)
                     buffer = ""
                     break
             
+            # Update displays
             current_response = "".join(response_content).strip()
             if current_response:
                 response_placeholder.markdown(current_response)
                 
-            current_think = "".join(thinking_content).strip()
-            if current_think and think_placeholder:
-                think_placeholder.markdown(current_think)
+            if think_container and thinking_content:
+                with think_container:
+                    st.markdown("".join(thinking_content).strip())
 
+    # Handle remaining buffer
     if buffer:
         if in_think_block:
             thinking_content.append(buffer)
         else:
             response_content.append(buffer)
     
+    # Finalize displays
     final_response = "".join(response_content).strip()
     final_think = "".join(thinking_content).strip()
     
+    # Ensure proper punctuation for main response
     if final_response and final_response[-1] not in {'.', '!', '?'}:
         final_response += '.'
     
     return final_response, final_think
 
-# Sidebar configuration remains the same
+# Sidebar configuration
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
     
+    # API key handling
     if 'REPLICATE_API_TOKEN' in st.secrets:
         replicate_api = st.secrets['REPLICATE_API_TOKEN']
         st.success('API key loaded!', icon="✅")
@@ -115,6 +127,7 @@ with st.sidebar:
     
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
+    # Model settings
     st.subheader('⚙️ Model Settings')
     st.session_state.temperature = st.slider('Temperature', 0.01, 1.0, 0.1)
     st.session_state.top_p = st.slider('Top P', 0.01, 1.0, 1.0)
@@ -122,11 +135,11 @@ with st.sidebar:
     st.session_state.presence_penalty = st.slider('Presence Penalty', -1.0, 1.0, 0.0)
     st.session_state.frequency_penalty = st.slider('Frequency Penalty', -1.0, 1.0, 0.0)
 
-# Display messages
+# Display chat history
 for message in st.session_state.messages:
     display_message(message)
 
-# Handle input
+# Handle user input
 if prompt := st.chat_input(disabled=not replicate_api):
     clean_prompt = prompt.strip()
     
@@ -152,6 +165,7 @@ if prompt := st.chat_input(disabled=not replicate_api):
             
             response_content, thinking_content = process_stream(response_stream)
             
+            # Format final response
             final_content = response_content
             if thinking_content:
                 final_content += f"<think>{thinking_content}</think>"
@@ -159,7 +173,7 @@ if prompt := st.chat_input(disabled=not replicate_api):
             st.session_state.messages.append({"role": "assistant", "content": final_content})
             st.rerun()
 
-# Clear button
+# Clear chat button
 with st.sidebar:
     st.button(
         'Clear Chat History',
