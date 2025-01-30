@@ -81,8 +81,9 @@ if st.session_state.messages[-1]["role"] != "assistant":
             thinking_text = ''
             answer_text = ''
             is_thinking = False
+            expander_shown = False
             
-            # Create a single status container and placeholder outside the loop
+            # Create containers outside the loop
             status_container = st.empty()
             answer_container = st.empty()
             
@@ -93,20 +94,22 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 if '<think>' in full_response and '</think>' not in full_response:
                     is_thinking = True
                     thinking_text += str(item)
-                    # Update the same status container instead of creating new ones
-                    with status_container.status("Thinking..."):
-                        st.write(thinking_text)
+                    with status_container:
+                        with st.expander("Thinking...", expanded=True):
+                            st.write(thinking_text)
+                    expander_shown = True
                 elif '</think>' in str(item):
                     is_thinking = False
-                    thinking_text = ''
-                    # Clear the status container when thinking is done
-                    status_container.empty()
+                    # Keep the expander but mark thinking as complete
+                    if expander_shown:
+                        with status_container:
+                            with st.expander("Thinking Process", expanded=False):
+                                st.write(thinking_text)
                 elif not is_thinking:
                     answer_text += str(item)
-                    # Update the same answer container
                     answer_container.markdown(answer_text)
             
-            # Final display of the answer
+            # Final display of the answer (this remains visible)
             if answer_text:
                 answer_container.markdown(answer_text)
                 
