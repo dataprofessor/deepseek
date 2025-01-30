@@ -115,6 +115,7 @@ def stream_response(response_stream):
 # Sidebar configuration
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
+    st.write('This chatbot is created using the open-source DeepSeek-R1 model.')
     
     if 'REPLICATE_API_TOKEN' in st.secrets:
         replicate_api = st.secrets['REPLICATE_API_TOKEN']
