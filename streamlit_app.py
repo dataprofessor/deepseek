@@ -2,6 +2,53 @@ import streamlit as st
 import replicate
 import os
 
+def stream_processor(response, answer_container):
+    full_response = ''
+    answer_text = ''
+    is_thinking = False
+    
+    for item in response:
+        text = str(item)
+        full_response += text
+        
+        if '<think>' in text:
+            is_thinking = True
+            yield text, full_response
+        elif '</think>' in text:
+            is_thinking = False
+        elif is_thinking:
+            yield text, full_response
+        elif not is_thinking:
+            answer_text += text
+            answer_container.markdown(answer_text)
+    
+    return full_response
+
+def clear_chat_history():
+    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+    st.session_state.thinking_content = ""
+
+def generate_deepseek_response(prompt_input):
+    string_dialogue = ""
+    for dict_message in st.session_state.messages:
+        if dict_message["role"] == "user":
+            string_dialogue += f"{dict_message['content']}\n\n"
+        else:
+            string_dialogue += f"{dict_message['content']}\n\n"
+    
+    response = replicate.stream(
+        "deepseek-ai/deepseek-r1",
+        input={
+            "prompt": f"{string_dialogue}{prompt_input}",
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "presence_penalty": presence_penalty,
+            "frequency_penalty": frequency_penalty
+        }
+    )
+    return response
+
 # App title
 st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 
@@ -42,33 +89,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-def clear_chat_history():
-    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
-    st.session_state.thinking_content = ""
-
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
-
-# Function for generating DeepSeek response
-def generate_deepseek_response(prompt_input):
-    string_dialogue = ""
-    for dict_message in st.session_state.messages:
-        if dict_message["role"] == "user":
-            string_dialogue += f"{dict_message['content']}\n\n"
-        else:
-            string_dialogue += f"{dict_message['content']}\n\n"
-    
-    response = replicate.stream(
-        "deepseek-ai/deepseek-r1",
-        input={
-            "prompt": f"{string_dialogue}{prompt_input}",
-            "temperature": temperature,
-            "top_p": top_p,
-            "max_tokens": max_tokens,
-            "presence_penalty": presence_penalty,
-            "frequency_penalty": frequency_penalty
-        }
-    )
-    return response
 
 # User-provided prompt
 if prompt := st.chat_input(disabled=not replicate_api):
@@ -80,46 +101,18 @@ if prompt := st.chat_input(disabled=not replicate_api):
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response = generate_deepseek_response(prompt)
+        
         # Create containers
         thinking_container = st.empty()
         answer_container = st.empty()
 
-        class StreamProcessor:
-            def __init__(self):
-                self.full_response = ''
-                self.thinking_text = ''
-                self.answer_text = ''
-                self.is_thinking = False
-
-            def process_stream(self):
-                for item in response:
-                    self.full_response += str(item)
-                    
-                    if '<think>' in item:
-                        self.is_thinking = True
-                        continue
-                        
-                    if self.is_thinking and '</think>' not in item:
-                        self.thinking_text = item
-                        yield self.thinking_text
-                        
-                    if '</think>' in item:
-                        self.is_thinking = False
-                        continue
-                        
-                    if not self.is_thinking and item.strip():
-                        self.answer_text += item
-                        answer_container.markdown(self.answer_text)
-
-        processor = StreamProcessor()
-
         # Display thinking process in an expander
         with thinking_container.expander("Thinking Process", expanded=True):
-            st.write_stream(processor.process_stream())
+            final_response = ''
+            for thought, response_so_far in stream_processor(response, answer_container):
+                st.write(thought)
+                final_response = response_so_far
 
-        # Final answer display
-        if processor.answer_text:
-            answer_container.markdown(processor.answer_text)
-
-        message = {"role": "assistant", "content": processor.full_response}
+        # Store the message
+        message = {"role": "assistant", "content": final_response}
         st.session_state.messages.append(message)
