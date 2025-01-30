@@ -39,10 +39,10 @@ def display_assistant_message(content):
                 st.markdown(cleaned_think)
 
 def stream_response(response_stream):
-    """Process the streaming response with proper content separation."""
-    buffer = ""
+    """Process the streaming response with real-time updates."""
     full_response = ""
     thinking_content = ""
+    current_think_block = ""
     in_think_block = False
     
     response_placeholder = st.empty()
@@ -50,60 +50,65 @@ def stream_response(response_stream):
     think_placeholder = None
 
     for chunk in response_stream:
-        buffer += str(chunk)
+        text_chunk = str(chunk)
+        buffer = text_chunk  # Process each chunk immediately
         
-        while True:
+        while buffer:
             if not in_think_block:
                 # Look for think tag start
                 start_idx = buffer.find("<think>")
                 if start_idx != -1:
                     # Add content before think tag to main response
-                    full_response += buffer[:start_idx]
+                    pre_think = buffer[:start_idx]
+                    full_response += pre_think
+                    response_placeholder.markdown(full_response + "▌")
+                    
+                    # Initialize thinking components
+                    think_container = st.expander("Thinking...", expanded=True)
+                    think_placeholder = think_container.empty()
+                    
                     buffer = buffer[start_idx+7:]  # 7 is len("<think>")
                     in_think_block = True
-                    if not think_container:
-                        think_container = st.expander("Thinking...", expanded=True)
-                        think_placeholder = think_container.empty()
                 else:
-                    # Add entire buffer to main response
+                    # Add entire chunk to main response
                     full_response += buffer
+                    response_placeholder.markdown(full_response + "▌")
                     buffer = ""
-                    break
             else:
                 # Look for think tag end
                 end_idx = buffer.find("</think>")
                 if end_idx != -1:
                     # Add content before end tag to thinking content
-                    thinking_content += buffer[:end_idx]
+                    current_think_block += buffer[:end_idx]
+                    thinking_content += current_think_block
+                    
+                    # Update thinking display
+                    if think_placeholder:
+                        think_placeholder.markdown(current_think_block + "▌")
+                    
+                    # Finalize thinking block
                     buffer = buffer[end_idx+8:]  # 8 is len("</think>")
                     in_think_block = False
-                    think_container = None
-                    think_placeholder = None
+                    current_think_block = ""
+                    
+                    # Close thinking expander
+                    if think_container:
+                        think_container.empty()
+                        think_container = None
+                        think_placeholder = None
                 else:
-                    # Add entire buffer to thinking content
-                    thinking_content += buffer
+                    # Add to current thinking block
+                    current_think_block += buffer
+                    if think_placeholder:
+                        think_placeholder.markdown(current_think_block + "▌")
                     buffer = ""
-                    break
-            
-            # Update displays
-            response_placeholder.markdown(full_response.strip() + "▌")
-            if think_placeholder:
-                think_placeholder.markdown(thinking_content.strip() + "▌")
 
-    # Handle remaining buffer
-    if buffer:
-        if in_think_block:
-            thinking_content += buffer
-        else:
-            full_response += buffer
-
-    # Final processing
-    full_response = full_response.strip()
-    thinking_content = thinking_content.strip()
+    # Finalize displays
+    response_placeholder.markdown(full_response.strip())
     
     # Ensure proper punctuation
-    if full_response and full_response[-1] not in {'.', '!', '?'}:
-        full_response += '.'
+    if full_response.strip() and full_response.strip()[-1] not in {'.', '!', '?'}:
+        full_response = full_response.strip() + '.'
     
     return f"{full_response}<think>{thinking_content}</think>"
 
@@ -111,7 +116,6 @@ def stream_response(response_stream):
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
     
-    # API key handling
     if 'REPLICATE_API_TOKEN' in st.secrets:
         replicate_api = st.secrets['REPLICATE_API_TOKEN']
         st.success('API key loaded!', icon="✅")
@@ -124,7 +128,6 @@ with st.sidebar:
     
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
-    # Model settings
     st.subheader('⚙️ Model Settings')
     st.session_state.temperature = st.slider('Temperature', 0.01, 1.0, 0.1)
     st.session_state.top_p = st.slider('Top P', 0.01, 1.0, 1.0)
