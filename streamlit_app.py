@@ -77,47 +77,43 @@ if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response_container = st.container()
         with response_container:
-            # Set up static containers for both phases
+            # Set up container for response
             with st.container():
-                # Initial setup of expanders
-                thinking_expander = st.expander("Thinking...", expanded=True)
-                answer_expander = st.expander("Generated answer", expanded=False)
-
-                # Add placeholders inside expanders
-                with thinking_expander:
+                # Create a status container for thinking phase
+                with st.status("Thinking...", expanded=True) as status:
                     thinking_placeholder = st.empty()
-                with answer_expander:
                     answer_placeholder = st.empty()
 
-                # Get the streamed response
-                response = generate_deepseek_response(prompt)
-                full_response = ''
-                thinking_content = ''
-                is_thinking = True
+                    # Get the streamed response
+                    response = generate_deepseek_response(prompt)
+                    full_response = ''
+                    thinking_content = ''
+                    is_thinking = True
 
-                for item in response:
-                    full_response += str(item)
+                    for item in response:
+                        full_response += str(item)
 
-                    # Check for thinking content
-                    think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
-                    if think_match:
-                        thinking_content = think_match.group(1).strip()
-                        thinking_placeholder.markdown(thinking_content)
+                        # Check for thinking content
+                        think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
+                        if think_match and is_thinking:
+                            thinking_content = think_match.group(1).strip()
+                            thinking_placeholder.markdown(thinking_content)
 
-                    # Check for answer content
-                    answer_parts = full_response.split('</think>')
-                    if len(answer_parts) > 1 and answer_parts[1].strip():
-                        if is_thinking:
-                            # Update expander states by replacing them
-                            thinking_expander.expanded = False
-                            answer_expander.expanded = True
-                            is_thinking = False
+                        # Check for answer content
+                        answer_parts = full_response.split('</think>')
+                        if len(answer_parts) > 1 and answer_parts[1].strip():
+                            if is_thinking:
+                                # Update status when transitioning to answer
+                                status.update(label="Generated answer", state="complete", expanded=True)
+                                is_thinking = False
+                                # Clear thinking content
+                                thinking_placeholder.empty()
 
-                        answer_content = answer_parts[1].strip()
-                        answer_placeholder.markdown(answer_content)
+                            answer_content = answer_parts[1].strip()
+                            answer_placeholder.markdown(answer_content)
 
-                # Store the full response
-                message = {"role": "assistant", "content": full_response}
+                    # Store the full response
+                    message = {"role": "assistant", "content": full_response}
             
             # Store the full response
             message = {"role": "assistant", "content": full_response}
