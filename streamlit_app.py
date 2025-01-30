@@ -5,6 +5,10 @@ import os
 # App title
 st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 
+# Initialize session state for thinking content
+if "thinking_content" not in st.session_state:
+    st.session_state.thinking_content = ""
+
 # Replicate Credentials
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
@@ -40,12 +44,12 @@ for message in st.session_state.messages:
 
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+    st.session_state.thinking_content = ""
 
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
 # Function for generating DeepSeek response
 def generate_deepseek_response(prompt_input):
-    # Format the conversation history
     string_dialogue = ""
     for dict_message in st.session_state.messages:
         if dict_message["role"] == "user":
@@ -75,43 +79,38 @@ if prompt := st.chat_input(disabled=not replicate_api):
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = generate_deepseek_response(prompt)
-            full_response = ''
-            thinking_text = ''
-            answer_text = ''
-            is_thinking = False
-            expander_shown = False
+        response = generate_deepseek_response(prompt)
+        full_response = ''
+        thinking_text = ''
+        answer_text = ''
+        is_thinking = False
+
+        # Create expandable container for thinking process
+        expander = st.expander("Thinking Process", expanded=True)
+        answer_placeholder = st.empty()
+
+        for item in response:
+            full_response += str(item)
             
-            # Create containers outside the loop
-            status_container = st.empty()
-            answer_container = st.empty()
-            
-            for item in response:
-                full_response += str(item)
-                
-                # Check if we're in a thinking block
-                if '<think>' in full_response and '</think>' not in full_response:
-                    is_thinking = True
-                    thinking_text += str(item)
-                    with status_container:
-                        with st.expander("Thinking...", expanded=True):
-                            st.write(thinking_text)
-                    expander_shown = True
-                elif '</think>' in str(item):
-                    is_thinking = False
-                    # Keep the expander but mark thinking as complete
-                    if expander_shown:
-                        with status_container:
-                            with st.expander("Thinking Process", expanded=False):
-                                st.write(thinking_text)
-                elif not is_thinking:
-                    answer_text += str(item)
-                    answer_container.markdown(answer_text)
-            
-            # Final display of the answer (this remains visible)
-            if answer_text:
-                answer_container.markdown(answer_text)
-                
-    message = {"role": "assistant", "content": full_response}
-    st.session_state.messages.append(message)
+            # Check if we're in a thinking block
+            if '<think>' in full_response and '</think>' not in full_response:
+                is_thinking = True
+                thinking_text += str(item)
+                st.session_state.thinking_content = thinking_text
+                with expander:
+                    st.write(thinking_text)
+            elif '</think>' in str(item):
+                is_thinking = False
+            elif not is_thinking:
+                answer_text += str(item)
+                answer_placeholder.markdown(answer_text)
+        
+        # Keep final thinking content in the expander
+        with expander:
+            st.write(st.session_state.thinking_content)
+        
+        # Display final answer
+        answer_placeholder.markdown(answer_text)
+        
+        message = {"role": "assistant", "content": full_response}
+        st.session_state.messages.append(message)
