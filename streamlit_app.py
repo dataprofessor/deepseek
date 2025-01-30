@@ -1,6 +1,7 @@
 import streamlit as st
 import replicate
 import os
+import re
 
 # Page configuration
 st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
@@ -12,9 +13,43 @@ if "messages" not in st.session_state:
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
 
+def format_reasoning_response(thinking_content):
+    """Format assistant content by removing think tags."""
+    return (
+        thinking_content.replace("<think>\n\n</think>", "")
+        .replace("<think>", "")
+        .replace("</think>", "")
+    )
+
+def display_message(message):
+    """Display a single message in the chat interface."""
+    role = message["role"]
+    with st.chat_message(role):
+        if role == "assistant":
+            display_assistant_message(message["content"])
+        else:
+            st.markdown(message["content"])
+
+def display_assistant_message(content):
+    """Display assistant message with thinking content if present."""
+    pattern = r"<think>(.*?)</think>"
+    think_match = re.search(pattern, content, re.DOTALL)
+    
+    if think_match:
+        think_content = think_match.group(0)
+        response_content = content.replace(think_content, "")
+        think_content = format_reasoning_response(think_content)
+        
+        with st.expander("Thinking Process", expanded=False):
+            st.markdown(think_content)
+        st.markdown(response_content.strip())
+    else:
+        st.markdown(content)
+
 def generate_deepseek_response():
     """Generate response using DeepSeek R1 model"""
-    dialogue_history = "\n\n".join([msg["content"] for msg in st.session_state.messages])
+    dialogue_history = "\n\n".join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages])
+    
     return replicate.stream(
         "deepseek-ai/deepseek-r1",
         input={
@@ -27,53 +62,35 @@ def generate_deepseek_response():
         }
     )
 
-def process_response(response):
-    """Process streaming response with enhanced cleaning"""
-    full_response = ""
+def process_thinking_phase(response):
+    """Process the thinking phase of the assistant's response."""
     thinking_content = ""
-    answer_content = ""
-    is_thinking = False
+    with st.status("Thinking...", expanded=True) as status:
+        think_placeholder = st.empty()
+        
+        for item in response:
+            text = str(item)
+            thinking_content += text
+            
+            if "</think>" in text.lower():
+                status.update(label="Thinking complete!", state="complete", expanded=False)
+                break
+            
+            think_placeholder.markdown(format_reasoning_response(thinking_content))
     
-    answer_container = st.empty()
-    think_container = st.empty()
+    return thinking_content
 
+def process_response_phase(response):
+    """Process the response phase of the assistant's response."""
+    response_placeholder = st.empty()
+    response_content = ""
+    
     for item in response:
         text = str(item)
-        full_response += text
-        
-        # Handle thinking tags
-        if "<think>" in text.lower():
-            is_thinking = True
-            text = text.replace("<think>", "").replace("</think>", "")
-            
-        if "</think>" in text.lower():
-            is_thinking = False
-            text = text.replace("</think>", "")
-            thinking_content += text
-            with think_container.expander("Thinking Process", expanded=False):
-                st.markdown(thinking_content.strip())
-            thinking_content = ""
-            
-        if is_thinking:
-            thinking_content += text
-            with think_container.expander("Thinking Process", expanded=True):
-                st.markdown(thinking_content)
-        else:
-            clean_text = text.strip(' .\n\t*-_')
-            if clean_text:
-                answer_content += clean_text + " "
-                answer_container.markdown(answer_content.strip())
-
-    # Final answer processing
-    final_answer = ' '.join(answer_content.strip().split())
+        response_content += text
+        response_placeholder.markdown(response_content.strip())
     
-    # Ensure proper punctuation and formatting
-    if final_answer:
-        if not final_answer.endswith(('.', '!', '?')):
-            final_answer += '.'
-        final_answer = final_answer.replace("**", "")  # Remove bold markdown
-        
-    return f"{final_answer}<think>{thinking_content.strip()}</think>" if thinking_content.strip() else final_answer
+    return response_content
 
 # Sidebar configuration
 with st.sidebar:
@@ -98,35 +115,37 @@ with st.sidebar:
     st.session_state.presence_penalty = st.slider('Presence Penalty', -1.0, 1.0, 0.0)
     st.session_state.frequency_penalty = st.slider('Frequency Penalty', -1.0, 1.0, 0.0)
 
-# Handle user input first
+# Display all messages
+for message in st.session_state.messages:
+    display_message(message)
+
+# Handle user input
 if prompt := st.chat_input(disabled=not replicate_api):
     clean_prompt = prompt.strip()
     
     if clean_prompt:
-        # Add user message to session state first
         st.session_state.messages.append({"role": "user", "content": clean_prompt})
+        with st.chat_message("user"):
+            st.markdown(clean_prompt)
         
-        # Generate assistant response after user message
+        # Generate assistant response
         with st.chat_message("assistant"):
-            response = generate_deepseek_response()
-            processed_response = process_response(response)
-            st.session_state.messages.append({"role": "assistant", "content": processed_response})
-
-# Display messages after processing input
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        content = message["content"]
-        
-        if "<think>" in content:
-            parts = content.split("<think>")
-            answer_part = parts[0].strip()
-            think_part = parts[1].split("</think>")[0].strip()
+            response_stream = generate_deepseek_response()
             
-            st.markdown(answer_part)
-            with st.expander("Thinking Process", expanded=False):
-                st.markdown(think_part)
-        else:
-            st.markdown(content)
+            # Process thinking phase
+            thinking_content = process_thinking_phase(response_stream)
+            
+            # Process response phase
+            response_content = process_response_phase(response_stream)
+            
+            # Combine and format final response
+            final_response = f"{response_content.strip()}<think>{format_reasoning_response(thinking_content)}</think>"
+            
+            if not final_response.endswith(('.', '!', '?')):
+                final_response += '.'
+            
+            st.session_state.messages.append({"role": "assistant", "content": final_response})
+            st.rerun()
 
 # Clear chat button
 with st.sidebar:
