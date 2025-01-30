@@ -89,7 +89,7 @@ with st.sidebar:
     
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
-    st.subheader('Model parameters')
+    st.subheader('⚙️ Settings')
     temperature = st.sidebar.slider('Temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01)
     top_p = st.sidebar.slider('Top P', min_value=0.01, max_value=1.0, value=1.0, step=0.01)
     max_tokens = st.sidebar.slider('Max Tokens', min_value=100, max_value=1000, value=800, step=100)
