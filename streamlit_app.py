@@ -26,7 +26,7 @@ with st.sidebar:
     temperature = st.sidebar.slider('Temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01)
     top_p = st.sidebar.slider('Top P', min_value=0.01, max_value=1.0, value=1.0, step=0.01)
     max_tokens = st.sidebar.slider('Max Tokens', min_value=100, max_value=2000, value=1000, step=100)
-    presence_penalty = st.sidebar.slider('Presence Penalty', min_value=-1.0, max_value=2.0, value=0.0, step=0.1)
+    presence_penalty = st.sidebar.slider('Presence Penalty', min_value=-1.0, max_value=1.0, value=0.0, step=0.1)
     frequency_penalty = st.sidebar.slider('Frequency Penalty', min_value=-1.0, max_value=1.0, value=0.0, step=0.1)
 
 # Store LLM generated responses
