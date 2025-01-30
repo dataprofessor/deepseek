@@ -2,8 +2,65 @@ import streamlit as st
 import replicate
 import os
 
+def stream_processor(response, answer_container):
+    full_response = ''
+    answer_text = ''
+    is_thinking = False
+    current_answer = st.empty()
+    
+    for item in response:
+        text = str(item)
+        full_response += text
+        
+        if '<think>' in text:
+            is_thinking = True
+            yield text, full_response
+        elif '</think>' in text:
+            is_thinking = False
+        elif is_thinking:
+            yield text, full_response
+        elif not is_thinking:
+            answer_text += text
+            current_answer.markdown(answer_text)
+    
+    # Final answer
+    if answer_text:
+        answer_container.markdown(answer_text)
+        current_answer.empty()
+        
+    return full_response
+
+def clear_chat_history():
+    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+    st.session_state.thinking_content = ""
+
+def generate_deepseek_response(prompt_input):
+    string_dialogue = ""
+    for dict_message in st.session_state.messages:
+        if dict_message["role"] == "user":
+            string_dialogue += f"{dict_message['content']}\n\n"
+        else:
+            string_dialogue += f"{dict_message['content']}\n\n"
+    
+    response = replicate.stream(
+        "deepseek-ai/deepseek-r1",
+        input={
+            "prompt": f"{string_dialogue}{prompt_input}",
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "presence_penalty": presence_penalty,
+            "frequency_penalty": frequency_penalty
+        }
+    )
+    return response
+
 # App title
 st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
+
+# Initialize session state for thinking content
+if "thinking_content" not in st.session_state:
+    st.session_state.thinking_content = ""
 
 # Replicate Credentials
 with st.sidebar:
@@ -38,33 +95,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-def clear_chat_history():
-    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
-
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
-
-# Function for generating DeepSeek response
-def generate_deepseek_response(prompt_input):
-    # Format the conversation history
-    string_dialogue = ""
-    for dict_message in st.session_state.messages:
-        if dict_message["role"] == "user":
-            string_dialogue += f"{dict_message['content']}\n\n"
-        else:
-            string_dialogue += f"{dict_message['content']}\n\n"
-    
-    response = replicate.stream(
-        "deepseek-ai/deepseek-r1",
-        input={
-            "prompt": f"{string_dialogue}{prompt_input}",
-            "temperature": temperature,
-            "top_p": top_p,
-            "max_tokens": max_tokens,
-            "presence_penalty": presence_penalty,
-            "frequency_penalty": frequency_penalty
-        }
-    )
-    return response
 
 # User-provided prompt
 if prompt := st.chat_input(disabled=not replicate_api):
@@ -75,70 +106,19 @@ if prompt := st.chat_input(disabled=not replicate_api):
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
-        answer_placeholder = st.empty()
-        status_container = None
-        thinking_content_placeholder = None
+        response = generate_deepseek_response(prompt)
         
-        with st.spinner("Thinking..."):
-            response = generate_deepseek_response(prompt)
-            full_response = ''
-            in_think = False
-            think_buffer = ''
-            answer_buffer = ''
+        # Create containers
+        thinking_container = st.empty()
+        answer_container = st.empty()
 
-            for item in response:
-                chunk = str(item)
-                full_response += chunk
+        # Display thinking process in an expander
+        with thinking_container.expander("Thinking Process", expanded=True):
+            final_response = ''
+            for thought, response_so_far in stream_processor(response, answer_container):
+                st.write(thought)
+                final_response = response_so_far
 
-                if not in_think:
-                    # Check for opening <think> tag
-                    think_start = full_response.find('<think>')
-                    if think_start != -1:
-                        # Transition to thinking phase
-                        in_think = True
-                        # Display content before <think> as answer
-                        answer_part = full_response[:think_start]
-                        if answer_part:
-                            answer_placeholder.markdown(answer_part)
-                        # Initialize thinking status
-                        status_container = st.status("Thinking...")
-                        thinking_content_placeholder = status_container.empty()
-                        # Start accumulating thinking content
-                        think_buffer = full_response[think_start + len('<think>'):]
-                    else:
-                        # Accumulate answer content
-                        answer_buffer += chunk
-                        answer_placeholder.markdown(answer_buffer + "▌")
-                else:
-                    # Inside thinking phase
-                    think_buffer += chunk
-                    # Check for closing </think>
-                    think_end = think_buffer.find('</think>')
-                    if think_end != -1:
-                        # Extract thinking content and remaining answer
-                        thinking_content = think_buffer[:think_end]
-                        answer_part = think_buffer[think_end + len('</think>'):]
-                        # Update status with final thinking content
-                        thinking_content_placeholder.markdown(thinking_content)
-                        status_container.update(state="complete")
-                        # Show remaining answer
-                        answer_buffer += answer_part
-                        answer_placeholder.markdown(answer_buffer)
-                        in_think = False
-                    else:
-                        # Update thinking content with streaming cursor
-                        thinking_content_placeholder.markdown(think_buffer + "▌")
-
-            # Handle remaining content after stream ends
-            if in_think:
-                # Show accumulated thinking content if </think> not found
-                thinking_content_placeholder.markdown(think_buffer)
-                status_container.update(state="complete")
-            elif not in_think and not answer_buffer:
-                # No thinking tags found at all
-                answer_placeholder.markdown(full_response)
-
-            # Store final answer
-            final_answer = answer_buffer if answer_buffer else full_response
-            message = {"role": "assistant", "content": final_answer}
-            st.session_state.messages.append(message)
+        # Store the message
+        message = {"role": "assistant", "content": final_response}
+        st.session_state.messages.append(message)
