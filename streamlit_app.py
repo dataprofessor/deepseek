@@ -105,7 +105,7 @@ for idx, message in enumerate(st.session_state.messages):
                 with st.expander("Thinking Process", expanded=not auto_collapse):
                     st.markdown(st.session_state.thinking_contents[idx//2 - 1])
 
-# Modified Clear Chat History button with dynamic type
+# Clear Chat History button with dynamic button coloring
 user_messages = [msg for msg in st.session_state.messages if msg["role"] == "user"]
 has_chat_history = len(user_messages) > 0  # Changes to primary as soon as there's a user message
 st.sidebar.button(
