@@ -7,7 +7,7 @@ st.set_page_config(page_title="🐳💬 Deepseek R1 Chatbot")
 
 # Replicate Credentials
 with st.sidebar:
-    st.title('🤖💬 Deepseek R1 Chatbot')
+    st.title('🐳💬 Deepseek R1 Chatbot')
     st.write('This chatbot is created using the Deepseek R1 LLM model.')
     
     if 'REPLICATE_API_TOKEN' in st.secrets:
