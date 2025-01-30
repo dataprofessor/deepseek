@@ -83,10 +83,6 @@ if st.session_state.messages[-1]["role"] != "assistant":
         response_container = st.container()
         with response_container:
             with st.spinner("Processing..."):
-                # Initialize state for response phases
-                if 'current_response' not in st.session_state:
-                    st.session_state.current_response = {"thinking": "", "answer": ""}
-
                 # Create expanders once
                 with st.expander("Thinking...", expanded=True) as thinking_expander:
                     thinking_placeholder = st.empty()
@@ -113,7 +109,29 @@ if st.session_state.messages[-1]["role"] != "assistant":
                     if len(answer_parts) > 1 and answer_parts[1].strip():
                         if is_thinking:
                             is_thinking = False
-                            # We can't modify expander state directly, but we can show/hide content
+                            # Clear thinking content when moving to answer phase
+                            thinking_placeholder.empty()
+                        
+                        answer_content = answer_parts[1].strip()
+                        answer_placeholder.markdown(answer_content)
+                
+                # Store the full response
+                message = {"role": "assistant", "content": full_response}
+                st.session_state.messages.append(message)        
+                for item in response:
+                    full_response += str(item)
+                    
+                    # Handle thinking phase
+                    think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
+                    if think_match and is_thinking:
+                        thinking_content = think_match.group(1).strip()
+                        thinking_placeholder.markdown(thinking_content)
+                    
+                    # Handle answer phase
+                    answer_parts = full_response.split('</think>')
+                    if len(answer_parts) > 1 and answer_parts[1].strip():
+                        if is_thinking:
+                            is_thinking = False
                             thinking_placeholder.empty()
                         
                         answer_content = answer_parts[1].strip()
