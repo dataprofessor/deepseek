@@ -2,7 +2,7 @@ import streamlit as st
 import replicate
 import os
 
-# App title
+# Page configuration
 st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 
 # Helper functions
@@ -81,6 +81,10 @@ if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response = generate_deepseek_response(prompt)
         full_response = ''
+        thinking_text = ''
+        answer_text = ''
+        is_thinking = False
+        
         thinking_container = st.empty()
         answer_container = st.empty()
 
@@ -88,11 +92,21 @@ if st.session_state.messages[-1]["role"] != "assistant":
             text = str(item)
             full_response += text
             
-            if '<think>' in text:
-                with thinking_container.expander("Thinking Process", expanded=True):
-                    st.markdown(text)
-            elif not any(['<think>' in full_response, '</think>' in full_response]):
-                answer_container.markdown(full_response)
+            if not is_thinking and '<think>' in text:
+                is_thinking = True
+                thinking_text = ''
+            
+            if is_thinking:
+                if '</think>' in text:
+                    is_thinking = False
+                else:
+                    thinking_text += text
+                    with thinking_container.expander("Thinking Process", expanded=True):
+                        st.markdown(thinking_text)
+            else:
+                if '<think>' not in text and '</think>' not in text:
+                    answer_text += text
+                    answer_container.markdown(answer_text)
 
         message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
