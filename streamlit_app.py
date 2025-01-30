@@ -45,6 +45,7 @@ def stream_response(response_stream):
     in_think_block = False
     
     response_placeholder = st.empty()
+    think_container = None
     think_placeholder = None
 
     for chunk in response_stream:
@@ -54,14 +55,15 @@ def stream_response(response_stream):
         if "<think>" in text_chunk:
             in_think_block = True
             text_chunk = text_chunk.replace("<think>", "")
-            if not think_placeholder:
-                with st.expander("Thinking...", expanded=True) as expander:
-                    think_placeholder = expander.empty()
+            if not think_container:
+                think_container = st.expander("Thinking...", expanded=True)
+                think_placeholder = think_container.empty()
         
         if "</think>" in text_chunk:
             in_think_block = False
             text_chunk = text_chunk.replace("</think>", "")
-            if think_placeholder:
+            if think_container:
+                think_container = None
                 think_placeholder = None
 
         # Update displays
