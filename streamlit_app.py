@@ -78,15 +78,18 @@ if st.session_state.messages[-1]["role"] != "assistant":
         response_container = st.container()
         with response_container:
             # Create expanders once
-            with st.expander("Thinking...", expanded=True) as thinking_expander:
+            thinking_expander = st.expander("Thinking...", expanded=True)
+            with thinking_expander:
                 thinking_placeholder = st.empty()
             
-            with st.expander("Generated answer", expanded=False) as answer_expander:
+            answer_expander = st.expander("Generated answer", expanded=False)
+            with answer_expander:
                 answer_placeholder = st.empty()
 
             # Get the streamed response
             response = generate_deepseek_response(prompt)
             full_response = ''
+            thinking_content = ''
             is_thinking = True
             
             for item in response:
@@ -103,13 +106,10 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 if len(answer_parts) > 1 and answer_parts[1].strip():
                     if is_thinking:
                         is_thinking = False
-                        # Re-create expanders with new states but keep content
-                        response_container.empty()
-                        with response_container:
-                            with st.expander("Thinking...", expanded=False):
-                                st.markdown(thinking_content)
-                            with st.expander("Generated answer", expanded=True):
-                                answer_placeholder = st.empty()
+                        # Keep thinking content but update expander states
+                        thinking_expander.expanded = False
+                        answer_expander.expanded = True
+                        thinking_placeholder.markdown(thinking_content)
                     
                     answer_content = answer_parts[1].strip()
                     answer_placeholder.markdown(answer_content)
