@@ -2,34 +2,10 @@ import streamlit as st
 import replicate
 import os
 
-def stream_processor(response, answer_container):
-    full_response = ''
-    answer_text = ''
-    is_thinking = False
-    current_answer = st.empty()
-    
-    for item in response:
-        text = str(item)
-        full_response += text
-        
-        if '<think>' in text:
-            is_thinking = True
-            yield text, full_response
-        elif '</think>' in text:
-            is_thinking = False
-        elif is_thinking:
-            yield text, full_response
-        elif not is_thinking:
-            answer_text += text
-            current_answer.markdown(answer_text)
-    
-    # Final answer
-    if answer_text:
-        answer_container.markdown(answer_text)
-        current_answer.empty()
-        
-    return full_response
+# App title
+st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 
+# Helper functions
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
     st.session_state.thinking_content = ""
@@ -54,9 +30,6 @@ def generate_deepseek_response(prompt_input):
         }
     )
     return response
-
-# App title
-st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 
 # Initialize session state for thinking content
 if "thinking_content" not in st.session_state:
@@ -107,18 +80,19 @@ if prompt := st.chat_input(disabled=not replicate_api):
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response = generate_deepseek_response(prompt)
-        
-        # Create containers
+        full_response = ''
         thinking_container = st.empty()
         answer_container = st.empty()
 
-        # Display thinking process in an expander
-        with thinking_container.expander("Thinking Process", expanded=True):
-            final_response = ''
-            for thought, response_so_far in stream_processor(response, answer_container):
-                st.write(thought)
-                final_response = response_so_far
+        for item in response:
+            text = str(item)
+            full_response += text
+            
+            if '<think>' in text:
+                with thinking_container.expander("Thinking Process", expanded=True):
+                    st.markdown(text)
+            elif not any(['<think>' in full_response, '</think>' in full_response]):
+                answer_container.markdown(full_response)
 
-        # Store the message
-        message = {"role": "assistant", "content": final_response}
+        message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
