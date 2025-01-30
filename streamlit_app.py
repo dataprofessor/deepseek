@@ -89,14 +89,22 @@ if st.session_state.messages[-1]["role"] != "assistant":
             with st.expander("Generated answer", expanded=True):
                 answer_placeholder = st.empty()
             
-            # Create expanders once, outside the loop
-            thinking_expander = st.expander("Thinking...", expanded=True)
-            with thinking_expander:
-                thinking_placeholder = st.empty()
+            # Create a container for the expanders
+            if 'expander_container' not in st.session_state:
+                st.session_state.expander_container = st.container()
+
+            # Clear previous expanders by clearing the container
+            st.session_state.expander_container.empty()
             
-            answer_expander = st.expander("Generated answer", expanded=False)
-            with answer_expander:
-                answer_placeholder = st.empty()
+            # Create expanders in the container
+            with st.session_state.expander_container:
+                thinking_expander = st.expander("Thinking...", expanded=True)
+                with thinking_expander:
+                    thinking_placeholder = st.empty()
+                
+                answer_expander = st.expander("Generated answer", expanded=False)
+                with answer_expander:
+                    answer_placeholder = st.empty()
             
             is_thinking = True  # Track which phase we're in
             
