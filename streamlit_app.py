@@ -8,7 +8,7 @@ st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 # Helper functions
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
-    st.session_state.thinking_contents = []  # Clear thinking contents when history is cleared
+    st.session_state.thinking_content = ""
 
 def generate_deepseek_response(prompt_input):
     string_dialogue = ""
@@ -31,12 +31,16 @@ def generate_deepseek_response(prompt_input):
     )
     return response
 
+# Processes streaming response and handles thinking/answer display
 def process_response(response, auto_collapse=True):
     full_response = ''
     thinking_text = ''
     answer_text = ''
     is_thinking = False
     
+    thinking_container = st.empty()
+    answer_container = st.empty()
+
     for item in response:
         text = str(item)
         full_response += text
@@ -49,24 +53,24 @@ def process_response(response, auto_collapse=True):
         if is_thinking:
             if '</think>' in text:
                 is_thinking = False
-                # Store thinking content in session state list
-                if 'thinking_contents' not in st.session_state:
-                    st.session_state.thinking_contents = []
-                st.session_state.thinking_contents.append(thinking_text)
+                # If auto-collapse is enabled, show collapsed expander
+                if auto_collapse:
+                    with thinking_container.expander("Thinking Process", expanded=False):
+                        st.markdown(thinking_text)
             else:
                 thinking_text += text
+                with thinking_container.expander("Thinking Process", expanded=True):
+                    st.markdown(thinking_text)
         else:
             if '<think>' not in text and '</think>' not in text:
                 answer_text += text
+                answer_container.markdown(answer_text)
                 
-    return full_response, thinking_text
+    return full_response
 
-# Initialize session states
-if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
-
-if "thinking_contents" not in st.session_state:
-    st.session_state.thinking_contents = []
+# Initialize session state for thinking content
+if "thinking_content" not in st.session_state:
+    st.session_state.thinking_content = ""
 
 # Replicate Credentials
 with st.sidebar:
@@ -95,19 +99,16 @@ with st.sidebar:
     # Add toggle for auto-collapse
     auto_collapse = st.toggle('Auto-collapse thinking process', value=True)
 
-# Display chat messages and thinking contents
-for idx, message in enumerate(st.session_state.messages):
+# Store LLM generated responses
+if "messages" not in st.session_state.keys():
+    st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+
+# Display or clear chat messages
+for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
-        # If this is an assistant message and we have thinking content for it
-        if message["role"] == "assistant" and idx//2 - 1 < len(st.session_state.thinking_contents):
-            if idx > 1:  # Skip the initial greeting
-                with st.expander("Thinking Process", expanded=not auto_collapse):
-                    st.markdown(st.session_state.thinking_contents[idx//2 - 1])
 
-# Modified Clear Chat History button with dynamic type
-user_messages = [msg for msg in st.session_state.messages if msg["role"] == "user"]
-has_chat_history = len(user_messages) > 0  # Changes to primary as soon as there's a user message
+has_chat_history = len(st.session_state.messages) > 1
 st.sidebar.button(
     'Clear Chat History',
     on_click=clear_chat_history,
@@ -125,6 +126,6 @@ if prompt := st.chat_input(disabled=not replicate_api):
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response = generate_deepseek_response(prompt)
-        full_response, thinking = process_response(response, auto_collapse)
+        full_response = process_response(response, auto_collapse)
         message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
