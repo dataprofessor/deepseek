@@ -83,12 +83,18 @@ if st.session_state.messages[-1]["role"] != "assistant":
             answer_content = ''
             
             # Create expanders for thinking and answer
-            with st.expander("Thinking..."):
+            with st.expander("Thinking...", expanded=True):
                 thinking_placeholder = st.empty()
             
-            with st.expander("Generated answer"):
+            with st.expander("Generated answer", expanded=True):
                 answer_placeholder = st.empty()
             
+            # Initialize state for expanders
+            if 'thinking_expanded' not in st.session_state:
+                st.session_state.thinking_expanded = True
+            if 'answer_expanded' not in st.session_state:
+                st.session_state.answer_expanded = True
+
             # Process the streaming response
             for item in response:
                 full_response += str(item)
@@ -97,13 +103,19 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
                 if think_match:
                     thinking_content = think_match.group(1).strip()
-                    thinking_placeholder.markdown(thinking_content)
+                    st.session_state.thinking_expanded = True
+                    st.session_state.answer_expanded = False
+                    with st.expander("Thinking...", expanded=st.session_state.thinking_expanded):
+                        st.markdown(thinking_content)
                 
                 # Get the answer content (everything after </think>)
                 answer_parts = full_response.split('</think>')
                 if len(answer_parts) > 1:
                     answer_content = answer_parts[1].strip()
-                    answer_placeholder.markdown(answer_content)
+                    st.session_state.thinking_expanded = False
+                    st.session_state.answer_expanded = True
+                    with st.expander("Generated answer", expanded=st.session_state.answer_expanded):
+                        st.markdown(answer_content)
                 
             # Store the full response in session state
             message = {"role": "assistant", "content": full_response}
