@@ -75,27 +75,70 @@ if prompt := st.chat_input(disabled=not replicate_api):
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
+        answer_placeholder = st.empty()
+        status_container = None
+        thinking_content_placeholder = None
+        
         with st.spinner("Thinking..."):
             response = generate_deepseek_response(prompt)
-            # Collect all items into full_response
-            full_response = ''.join([str(item) for item in response])
-            
-            # Parse think and answer sections
-            think_start = full_response.find('<think>')
-            think_end = full_response.find('</think>')
-            think_content = None
-            answer = full_response
-            
-            if think_start != -1 and think_end != -1:
-                think_content = full_response[think_start + len('<think>'):think_end].strip()
-                answer = full_response[think_end + len('</think>'):].strip()
-            
-            # Display think_content in a status and answer in markdown
-            if think_content:
-                with st.status("Thinking..."):
-                    st.markdown(think_content)
-            st.markdown(answer)
-            
-            # Store the answer in session_state
-            message = {"role": "assistant", "content": answer}
+            full_response = ''
+            in_think = False
+            think_buffer = ''
+            answer_buffer = ''
+
+            for item in response:
+                chunk = str(item)
+                full_response += chunk
+
+                if not in_think:
+                    # Check for opening <think> tag
+                    think_start = full_response.find('<think>')
+                    if think_start != -1:
+                        # Transition to thinking phase
+                        in_think = True
+                        # Display content before <think> as answer
+                        answer_part = full_response[:think_start]
+                        if answer_part:
+                            answer_placeholder.markdown(answer_part)
+                        # Initialize thinking status
+                        status_container = st.status("Thinking...")
+                        thinking_content_placeholder = status_container.empty()
+                        # Start accumulating thinking content
+                        think_buffer = full_response[think_start + len('<think>'):]
+                    else:
+                        # Accumulate answer content
+                        answer_buffer += chunk
+                        answer_placeholder.markdown(answer_buffer + "▌")
+                else:
+                    # Inside thinking phase
+                    think_buffer += chunk
+                    # Check for closing </think>
+                    think_end = think_buffer.find('</think>')
+                    if think_end != -1:
+                        # Extract thinking content and remaining answer
+                        thinking_content = think_buffer[:think_end]
+                        answer_part = think_buffer[think_end + len('</think>'):]
+                        # Update status with final thinking content
+                        thinking_content_placeholder.markdown(thinking_content)
+                        status_container.update(state="complete")
+                        # Show remaining answer
+                        answer_buffer += answer_part
+                        answer_placeholder.markdown(answer_buffer)
+                        in_think = False
+                    else:
+                        # Update thinking content with streaming cursor
+                        thinking_content_placeholder.markdown(think_buffer + "▌")
+
+            # Handle remaining content after stream ends
+            if in_think:
+                # Show accumulated thinking content if </think> not found
+                thinking_content_placeholder.markdown(think_buffer)
+                status_container.update(state="complete")
+            elif not in_think and not answer_buffer:
+                # No thinking tags found at all
+                answer_placeholder.markdown(full_response)
+
+            # Store final answer
+            final_answer = answer_buffer if answer_buffer else full_response
+            message = {"role": "assistant", "content": final_answer}
             st.session_state.messages.append(message)
