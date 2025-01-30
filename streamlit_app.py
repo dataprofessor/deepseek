@@ -31,6 +31,43 @@ def generate_deepseek_response(prompt_input):
     )
     return response
 
+# Processes streaming response and handles thinking/answer display
+def process_response(response, auto_collapse=True):
+    full_response = ''
+    thinking_text = ''
+    answer_text = ''
+    is_thinking = False
+    
+    thinking_container = st.empty()
+    answer_container = st.empty()
+
+    for item in response:
+        text = str(item)
+        full_response += text
+        
+        if not is_thinking and '<think>' in text:
+            is_thinking = True
+            thinking_text = ''
+            text = text.replace('<think>', '')  # Strip out <think> tag
+        
+        if is_thinking:
+            if '</think>' in text:
+                is_thinking = False
+                # If auto-collapse is enabled, show collapsed expander
+                if auto_collapse:
+                    with thinking_container.expander("Thinking Process", expanded=False):
+                        st.markdown(thinking_text)
+            else:
+                thinking_text += text
+                with thinking_container.expander("Thinking Process", expanded=True):
+                    st.markdown(thinking_text)
+        else:
+            if '<think>' not in text and '</think>' not in text:
+                answer_text += text
+                answer_container.markdown(answer_text)
+                
+    return full_response
+
 # Initialize session state for thinking content
 if "thinking_content" not in st.session_state:
     st.session_state.thinking_content = ""
@@ -58,6 +95,9 @@ with st.sidebar:
     max_tokens = st.sidebar.slider('Max Tokens', min_value=100, max_value=1000, value=800, step=100)
     presence_penalty = st.sidebar.slider('Presence Penalty', min_value=-1.0, max_value=1.0, value=0.0, step=0.1)
     frequency_penalty = st.sidebar.slider('Frequency Penalty', min_value=-1.0, max_value=1.0, value=0.0, step=0.1)
+    
+    # Add toggle for auto-collapse
+    auto_collapse = st.toggle('Auto-collapse thinking process', value=True)
 
 # Store LLM generated responses
 if "messages" not in st.session_state.keys():
@@ -80,34 +120,6 @@ if prompt := st.chat_input(disabled=not replicate_api):
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response = generate_deepseek_response(prompt)
-        full_response = ''
-        thinking_text = ''
-        answer_text = ''
-        is_thinking = False
-        
-        thinking_container = st.empty()
-        answer_container = st.empty()
-
-        for item in response:
-            text = str(item)
-            full_response += text
-            
-            if not is_thinking and '<think>' in text:
-                is_thinking = True
-                thinking_text = ''
-                text = text.replace('<think>', '')  # Strip out <think> tag
-            
-            if is_thinking:
-                if '</think>' in text:
-                    is_thinking = False
-                else:
-                    thinking_text += text
-                    with thinking_container.expander("Thinking Process", expanded=True):
-                        st.markdown(thinking_text)
-            else:
-                if '<think>' not in text and '</think>' not in text:
-                    answer_text += text
-                    answer_container.markdown(answer_text)
-
+        full_response = process_response(response, auto_collapse)
         message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
