@@ -77,19 +77,25 @@ if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         response_container = st.container()
         with response_container:
-            # Create expanders once
-            thinking_expander = st.expander("Thinking...", expanded=True)
-            with thinking_expander:
-                thinking_placeholder = st.empty()
-            
-            answer_expander = st.expander("Generated answer", expanded=False)
-            with answer_expander:
-                answer_placeholder = st.empty()
+            # Initialize expander states in session state
+            if 'thinking_expanded' not in st.session_state:
+                st.session_state.thinking_expanded = True
+            if 'answer_expanded' not in st.session_state:
+                st.session_state.answer_expanded = False
 
+            # Function to update expander states
+            def update_expander_states(thinking=True):
+                st.session_state.thinking_expanded = thinking
+                st.session_state.answer_expanded = not thinking
+                
+            # Create container for expanders
+            response_container = st.empty()
+            
             # Get the streamed response
             response = generate_deepseek_response(prompt)
             full_response = ''
             thinking_content = ''
+            answer_content = ''
             is_thinking = True
             
             for item in response:
@@ -99,20 +105,23 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
                 if think_match and is_thinking:
                     thinking_content = think_match.group(1).strip()
-                    thinking_placeholder.markdown(thinking_content)
                 
                 # Handle answer phase
                 answer_parts = full_response.split('</think>')
                 if len(answer_parts) > 1 and answer_parts[1].strip():
                     if is_thinking:
                         is_thinking = False
-                        # Keep thinking content but update expander states
-                        thinking_expander.expanded = False
-                        answer_expander.expanded = True
-                        thinking_placeholder.markdown(thinking_content)
-                    
+                        update_expander_states(thinking=False)
                     answer_content = answer_parts[1].strip()
-                    answer_placeholder.markdown(answer_content)
+                
+                # Update expanders
+                with response_container:
+                    with st.expander("Thinking...", expanded=st.session_state.thinking_expanded):
+                        if thinking_content:
+                            st.markdown(thinking_content)
+                    with st.expander("Generated answer", expanded=st.session_state.answer_expanded):
+                        if answer_content:
+                            st.markdown(answer_content)
             
             # Store the full response
             message = {"role": "assistant", "content": full_response}
