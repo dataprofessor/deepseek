@@ -108,7 +108,13 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
+# Modified Clear Chat History button with dynamic type
+has_chat_history = len(st.session_state.messages) > 1  # More than just the initial greeting
+st.sidebar.button(
+    'Clear Chat History',
+    on_click=clear_chat_history,
+    type="primary" if has_chat_history else "secondary"
+)
 
 # User-provided prompt
 if prompt := st.chat_input(disabled=not replicate_api):
