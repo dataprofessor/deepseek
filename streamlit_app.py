@@ -77,11 +77,14 @@ if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = generate_deepseek_response(prompt)
-            placeholder = st.empty()
             full_response = ''
             thinking_text = ''
             answer_text = ''
             is_thinking = False
+            
+            # Create a single status container and placeholder outside the loop
+            status_container = st.empty()
+            answer_container = st.empty()
             
             for item in response:
                 full_response += str(item)
@@ -90,18 +93,22 @@ if st.session_state.messages[-1]["role"] != "assistant":
                 if '<think>' in full_response and '</think>' not in full_response:
                     is_thinking = True
                     thinking_text += str(item)
-                    with st.status("Thinking..."):
+                    # Update the same status container instead of creating new ones
+                    with status_container.status("Thinking..."):
                         st.write(thinking_text)
                 elif '</think>' in str(item):
                     is_thinking = False
                     thinking_text = ''
+                    # Clear the status container when thinking is done
+                    status_container.empty()
                 elif not is_thinking:
                     answer_text += str(item)
-                    st.markdown(answer_text)
+                    # Update the same answer container
+                    answer_container.markdown(answer_text)
             
             # Final display of the answer
             if answer_text:
-                st.markdown(answer_text)
+                answer_container.markdown(answer_text)
                 
     message = {"role": "assistant", "content": full_response}
     st.session_state.messages.append(message)
