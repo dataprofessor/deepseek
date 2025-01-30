@@ -41,7 +41,6 @@ def process_response(response):
         text = str(item)
         full_response += text
         
-        # Handle thinking tags
         if "<think>" in text.lower():
             is_thinking = True
             text = text.replace("<think>", "").replace("</think>", "")
@@ -59,14 +58,12 @@ def process_response(response):
             with think_container.expander("Thinking Process", expanded=True):
                 st.markdown(thinking_content)
         else:
-            # Remove markdown headers and separators
             clean_text = text.replace("#", "").replace("---", "").strip()
             answer_content += clean_text + " "
             answer_container.markdown(answer_content.strip())
 
-    # Final formatting
     final_answer = ' '.join(answer_content.strip().split())
-    if final_answer and not final_answer[-1] in {'.', '!', '?'}:
+    if final_answer and not final_answer.endswith(('.', '!', '?')):
         final_answer += '.'
     
     return f"{final_answer}<think>{thinking_content.strip()}</think>" if thinking_content.strip() else final_answer
@@ -75,8 +72,16 @@ def process_response(response):
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
     
-    # API key and model settings
-    replicate_api = st.secrets['REPLICATE_API_TOKEN'] if 'REPLICATE_API_TOKEN' in st.secrets else st.text_input('Enter Replicate API token:', type='password')
+    if 'REPLICATE_API_TOKEN' in st.secrets:
+        replicate_api = st.secrets['REPLICATE_API_TOKEN']
+        st.success('API key loaded!', icon="✅")
+    else:
+        replicate_api = st.text_input('Enter Replicate API token:', type='password')
+        if not (replicate_api.startswith('r8_') and len(replicate_api) == 40):
+            st.warning('Please enter valid credentials!', icon="⚠️")
+        else:
+            st.success('Ready to chat!', icon="👉")
+    
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
     st.subheader('⚙️ Model Settings')
@@ -86,7 +91,7 @@ with st.sidebar:
     st.session_state.presence_penalty = st.slider('Presence Penalty', -1.0, 1.0, 0.0)
     st.session_state.frequency_penalty = st.slider('Frequency Penalty', -1.0, 1.0, 0.0)
 
-# Display messages
+# Display all messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         content = message["content"]
@@ -102,16 +107,19 @@ for message in st.session_state.messages:
         else:
             st.markdown(content)
 
-# Handle input and responses
+# Handle user input
 if prompt := st.chat_input(disabled=not replicate_api):
-    if (clean_prompt := prompt.strip()) and any(c.isalnum() for c in clean_prompt):
+    clean_prompt = prompt.strip()
+    
+    if clean_prompt and any(c.isalnum() for c in clean_prompt):
+        # Append user message to session state
         st.session_state.messages.append({"role": "user", "content": clean_prompt})
-
-if st.session_state.messages[-1]["role"] == "user":
-    with st.chat_message("assistant"):
-        response = generate_deepseek_response()
-        processed_response = process_response(response)
-        st.session_state.messages.append({"role": "assistant", "content": processed_response})
+        
+        # Generate assistant response
+        with st.chat_message("assistant"):
+            response = generate_deepseek_response()
+            processed_response = process_response(response)
+            st.session_state.messages.append({"role": "assistant", "content": processed_response})
 
 # Clear chat button
 with st.sidebar:
