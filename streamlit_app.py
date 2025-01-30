@@ -95,6 +95,7 @@ if st.session_state.messages[-1]["role"] != "assistant":
             if not is_thinking and '<think>' in text:
                 is_thinking = True
                 thinking_text = ''
+                text = text.replace('<think>', '')  # Strip out <think> tag
             
             if is_thinking:
                 if '</think>' in text:
