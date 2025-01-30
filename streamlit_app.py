@@ -10,7 +10,17 @@ def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
     st.session_state.thinking_content = ""
 
-def generate_deepseek_response(prompt_input):
+def generate_deepseek_response():
+    # Retrieve the last user message from chat history
+    last_user_message = None
+    for message in reversed(st.session_state.messages):
+        if message["role"] == "user":
+            last_user_message = message["content"]
+            break
+    if not last_user_message:
+        return "No user message found."
+    
+    # Construct the dialogue history
     string_dialogue = ""
     for dict_message in st.session_state.messages:
         if dict_message["role"] == "user":
@@ -21,7 +31,7 @@ def generate_deepseek_response(prompt_input):
     response = replicate.stream(
         "deepseek-ai/deepseek-r1",
         input={
-            "prompt": f"{string_dialogue}{prompt_input}",
+            "prompt": f"{string_dialogue}{last_user_message}",
             "temperature": temperature,
             "top_p": top_p,
             "max_tokens": max_tokens,
@@ -72,11 +82,13 @@ def process_response(response, auto_collapse=True):
 if "thinking_content" not in st.session_state:
     st.session_state.thinking_content = ""
 
-# Replicate Credentials
+
 with st.sidebar:
+    # App title
     st.title('🐳💬 DeepSeek R1 Chatbot')
     st.write('This chatbot is created using the DeepSeek R1 LLM model.')
-    
+
+    # Replicate Credentials
     if 'REPLICATE_API_TOKEN' in st.secrets:
         st.success('API key already provided!', icon='✅')
         replicate_api = st.secrets['REPLICATE_API_TOKEN']
@@ -89,6 +101,7 @@ with st.sidebar:
     
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
+    # Settings
     st.subheader('⚙️ Settings')
     temperature = st.sidebar.slider('Temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01)
     top_p = st.sidebar.slider('Top P', min_value=0.01, max_value=1.0, value=1.0, step=0.01)
@@ -108,14 +121,6 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-has_chat_history = len(st.session_state.messages) > 1
-st.sidebar.button(
-    'Clear Chat History',
-    on_click=clear_chat_history,
-    type="primary" if has_chat_history else "secondary",
-    use_container_width=True
-)
-
 # User-provided prompt
 if prompt := st.chat_input(disabled=not replicate_api):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -125,7 +130,16 @@ if prompt := st.chat_input(disabled=not replicate_api):
 # Generate a new response if last message is not from assistant
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
-        response = generate_deepseek_response(prompt)
+        response = generate_deepseek_response()
         full_response = process_response(response, auto_collapse)
         message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
+
+# Determine button type after processing messages
+has_chat_history = len(st.session_state.messages) > 1
+st.sidebar.button(
+    'Clear Chat History',
+    on_click=clear_chat_history,
+    type="primary" if has_chat_history else "secondary",
+    use_container_width=True
+)
