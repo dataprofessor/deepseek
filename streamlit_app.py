@@ -59,8 +59,7 @@ def process_response(response):
             with think_container.expander("Thinking Process", expanded=True):
                 st.markdown(thinking_content)
         else:
-            # Enhanced cleaning for answer content
-            clean_text = text.replace("#", "").replace("---", "").replace("- ", "").strip(' .\n\t')
+            clean_text = text.strip(' .\n\t*-_')
             if clean_text:
                 answer_content += clean_text + " "
                 answer_container.markdown(answer_content.strip())
@@ -68,13 +67,12 @@ def process_response(response):
     # Final answer processing
     final_answer = ' '.join(answer_content.strip().split())
     
-    # Ensure proper punctuation
+    # Ensure proper punctuation and formatting
     if final_answer:
-        if not final_answer[-1] in {'.', '!', '?'}:
+        if not final_answer.endswith(('.', '!', '?')):
             final_answer += '.'
-        # Remove leading punctuation
-        final_answer = final_answer.lstrip('.- ').strip()
-    
+        final_answer = final_answer.replace("**", "")  # Remove bold markdown
+        
     return f"{final_answer}<think>{thinking_content.strip()}</think>" if thinking_content.strip() else final_answer
 
 # Sidebar configuration
@@ -120,10 +118,10 @@ for message in st.session_state.messages:
 if prompt := st.chat_input(disabled=not replicate_api):
     clean_prompt = prompt.strip()
     
-    if clean_prompt and any(c.isalnum() for c in clean_prompt):
+    if clean_prompt:
         st.session_state.messages.append({"role": "user", "content": clean_prompt})
         
-        # Generate response immediately after user input
+        # Generate assistant response
         with st.chat_message("assistant"):
             response = generate_deepseek_response()
             processed_response = process_response(response)
