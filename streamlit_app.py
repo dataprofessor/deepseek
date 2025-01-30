@@ -45,47 +45,44 @@ def stream_response(response_stream):
     in_think_block = False
     
     response_placeholder = st.empty()
-    think_container = None
+    think_placeholder = None
 
     for chunk in response_stream:
         text_chunk = str(chunk)
-        full_response += text_chunk
-
+        
         # Handle thinking blocks
-        if "<think>" in text_chunk.lower():
+        if "<think>" in text_chunk:
             in_think_block = True
             text_chunk = text_chunk.replace("<think>", "")
-            if not think_container:
-                think_container = st.expander("Thinking...", expanded=True)
+            if not think_placeholder:
+                with st.expander("Thinking...", expanded=True) as expander:
+                    think_placeholder = expander.empty()
         
-        if "</think>" in text_chunk.lower():
+        if "</think>" in text_chunk:
             in_think_block = False
             text_chunk = text_chunk.replace("</think>", "")
-            if think_container:
-                think_container.update(expanded=False)
-                think_container = None
+            if think_placeholder:
+                think_placeholder = None
 
         # Update displays
         if in_think_block:
             thinking_content += text_chunk
-            if think_container:
-                with think_container:
-                    st.markdown(format_reasoning_response(thinking_content))
+            if think_placeholder:
+                think_placeholder.markdown(thinking_content + "▌")
         else:
-            # Update main response in real-time
-            response_placeholder.markdown(full_response.replace("<think>", "").replace("</think>", "") + "▌")
+            full_response += text_chunk
+            response_placeholder.markdown(full_response + "▌")
 
-    # Finalize display without cursor
-    response_placeholder.markdown(full_response.replace("<think>", "").replace("</think>", ""))
+    # Finalize display
+    response_placeholder.markdown(full_response)
     
     # Ensure proper punctuation
-    final_response = full_response.strip()
-    if final_response and final_response[-1] not in {'.', '!', '?'}:
-        final_response += '.'
+    if full_response and full_response[-1] not in {'.', '!', '?'}:
+        full_response += '.'
     
-    return final_response
+    return f"{full_response}<think>{thinking_content}</think>"
 
-# Sidebar configuration remains the same
+# Sidebar configuration
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
     
@@ -136,11 +133,9 @@ if prompt := st.chat_input(disabled=not replicate_api):
                 }
             )
             
-            # Stream the response with real-time updates
             full_response = stream_response(response_stream)
-            
-            # Save to message history
             st.session_state.messages.append({"role": "assistant", "content": full_response})
+            st.rerun()
 
 # Clear chat button
 with st.sidebar:
