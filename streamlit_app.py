@@ -85,32 +85,39 @@ if st.session_state.messages[-1]["role"] != "assistant":
         answer_text = ''
         is_thinking = False
 
-        # Create expandable container for thinking process
-        expander = st.expander("Thinking Process", expanded=True)
-        answer_placeholder = st.empty()
+        # Create containers
+        thinking_container = st.empty()
+        answer_container = st.empty()
 
-        for item in response:
-            full_response += str(item)
+        def process_stream():
+            nonlocal full_response, thinking_text, answer_text, is_thinking
             
-            # Check if we're in a thinking block
-            if '<think>' in full_response and '</think>' not in full_response:
-                is_thinking = True
-                thinking_text += str(item)
-                st.session_state.thinking_content = thinking_text
-                with expander:
-                    st.write(thinking_text)
-            elif '</think>' in str(item):
-                is_thinking = False
-            elif not is_thinking:
-                answer_text += str(item)
-                answer_placeholder.markdown(answer_text)
-        
-        # Keep final thinking content in the expander
-        with expander:
-            st.write(st.session_state.thinking_content)
-        
-        # Display final answer
-        answer_placeholder.markdown(answer_text)
-        
+            for item in response:
+                full_response += str(item)
+                
+                if '<think>' in item:
+                    is_thinking = True
+                    continue
+                    
+                if is_thinking and '</think>' not in item:
+                    thinking_text = item
+                    yield thinking_text
+                    
+                if '</think>' in item:
+                    is_thinking = False
+                    continue
+                    
+                if not is_thinking and item.strip():
+                    answer_text += item
+                    answer_container.markdown(answer_text)
+
+        # Display thinking process in an expander
+        with thinking_container.expander("Thinking Process", expanded=True):
+            st.write_stream(process_stream())
+
+        # Final answer display
+        if answer_text:
+            answer_container.markdown(answer_text)
+
         message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
