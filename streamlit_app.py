@@ -27,94 +27,68 @@ def display_message(message):
 
 def display_assistant_message(content):
     """Parse and display assistant message with thinking process."""
-    # Extract all thinking blocks using regex
     think_blocks = re.findall(r'<think>(.*?)</think>', content, re.DOTALL)
-    
-    # Remove thinking blocks from main content
     main_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
     
-    # Display main response
     st.markdown(main_content)
     
-    # Display thinking blocks in expanders
     for think_content in think_blocks:
         cleaned_think = format_reasoning_response(think_content)
         if cleaned_think:
             with st.expander("Thinking Process", expanded=False):
                 st.markdown(cleaned_think)
 
-def process_stream(response_stream):
-    """Process the streaming response with dynamic tag handling."""
-    buffer = ""
+def stream_response(response_stream):
+    """Stream the response with real-time updates."""
+    full_response = ""
+    thinking_content = ""
     in_think_block = False
-    thinking_content = []
-    response_content = []
     
     response_placeholder = st.empty()
     think_container = None
 
-    for item in response_stream:
-        buffer += str(item)
-        
-        while True:
-            if not in_think_block:
-                # Look for think tag start
-                start_idx = buffer.find("<think>")
-                if start_idx != -1:
-                    # Capture content before think tag
-                    response_content.append(buffer[:start_idx])
-                    buffer = buffer[start_idx+7:]  # 7 is length of "<think>"
-                    in_think_block = True
-                    think_container = st.expander("Thinking...", expanded=True)
-                else:
-                    response_content.append(buffer)
-                    buffer = ""
-                    break
-            else:
-                # Look for think tag end
-                end_idx = buffer.find("</think>")
-                if end_idx != -1:
-                    # Capture content within think tag
-                    thinking_content.append(buffer[:end_idx])
-                    buffer = buffer[end_idx+8:]  # 8 is length of "</think>"
-                    in_think_block = False
-                    think_container = None
-                else:
-                    thinking_content.append(buffer)
-                    buffer = ""
-                    break
-            
-            # Update displays
-            current_response = "".join(response_content).strip()
-            if current_response:
-                response_placeholder.markdown(current_response)
-                
-            if think_container and thinking_content:
-                with think_container:
-                    st.markdown("".join(thinking_content).strip())
+    for chunk in response_stream:
+        text_chunk = str(chunk)
+        full_response += text_chunk
 
-    # Handle remaining buffer
-    if buffer:
+        # Handle thinking blocks
+        if "<think>" in text_chunk.lower():
+            in_think_block = True
+            text_chunk = text_chunk.replace("<think>", "")
+            if not think_container:
+                think_container = st.expander("Thinking...", expanded=True)
+        
+        if "</think>" in text_chunk.lower():
+            in_think_block = False
+            text_chunk = text_chunk.replace("</think>", "")
+            if think_container:
+                think_container.update(expanded=False)
+                think_container = None
+
+        # Update displays
         if in_think_block:
-            thinking_content.append(buffer)
+            thinking_content += text_chunk
+            if think_container:
+                with think_container:
+                    st.markdown(format_reasoning_response(thinking_content))
         else:
-            response_content.append(buffer)
+            # Update main response in real-time
+            response_placeholder.markdown(full_response.replace("<think>", "").replace("</think>", "") + "▌")
+
+    # Finalize display without cursor
+    response_placeholder.markdown(full_response.replace("<think>", "").replace("</think>", ""))
     
-    # Finalize displays
-    final_response = "".join(response_content).strip()
-    final_think = "".join(thinking_content).strip()
-    
-    # Ensure proper punctuation for main response
+    # Ensure proper punctuation
+    final_response = full_response.strip()
     if final_response and final_response[-1] not in {'.', '!', '?'}:
         final_response += '.'
     
-    return final_response, final_think
+    return final_response
 
-# Sidebar configuration
+# Sidebar configuration remains the same
 with st.sidebar:
     st.title('🐳💬 DeepSeek R1 Chatbot')
     
-    # API key handling
     if 'REPLICATE_API_TOKEN' in st.secrets:
         replicate_api = st.secrets['REPLICATE_API_TOKEN']
         st.success('API key loaded!', icon="✅")
@@ -127,7 +101,6 @@ with st.sidebar:
     
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
-    # Model settings
     st.subheader('⚙️ Model Settings')
     st.session_state.temperature = st.slider('Temperature', 0.01, 1.0, 0.1)
     st.session_state.top_p = st.slider('Top P', 0.01, 1.0, 1.0)
@@ -163,15 +136,11 @@ if prompt := st.chat_input(disabled=not replicate_api):
                 }
             )
             
-            response_content, thinking_content = process_stream(response_stream)
+            # Stream the response with real-time updates
+            full_response = stream_response(response_stream)
             
-            # Format final response
-            final_content = response_content
-            if thinking_content:
-                final_content += f"<think>{thinking_content}</think>"
-            
-            st.session_state.messages.append({"role": "assistant", "content": final_content})
-            st.rerun()
+            # Save to message history
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 # Clear chat button
 with st.sidebar:
