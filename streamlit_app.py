@@ -11,12 +11,12 @@ if "messages" not in st.session_state:
 
 # Helper functions
 def clear_chat_history():
+    """Clear chat history"""
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
 
 def generate_deepseek_response():
-    """Generate response using DeepSeek R1 model"""
+    """Generate response using DeepSeek-R1 model"""
     dialogue_history = "\n\n".join([msg["content"] for msg in st.session_state.messages])
-    
     return replicate.stream(
         "deepseek-ai/deepseek-r1",
         input={
@@ -30,16 +30,17 @@ def generate_deepseek_response():
     )
 
 def process_response(response):
-    """Process streaming response with thinking/answer separation"""
+    """Process streaming response with organized final processing"""
     full_response = ""
     thinking_content = ""
     answer_content = ""
     is_thinking = False
     
-    # Create containers for proper ordering
+    # Containers for real-time display
     think_container = st.empty()
     answer_container = st.empty()
 
+    # Process stream chunks
     for item in response:
         text = str(item)
         full_response += text
@@ -54,7 +55,7 @@ def process_response(response):
             text = text.replace("</think>", "")
             thinking_content += text
             with think_container.expander("Thinking Process", expanded=False):
-                st.markdown(thinking_content)
+                st.markdown(thinking_content.strip())
             thinking_content = ""
             
         if is_thinking:
@@ -62,12 +63,22 @@ def process_response(response):
             with think_container.expander("Thinking Process", expanded=True):
                 st.markdown(thinking_content)
         else:
-            # Clean any residual tags
-            clean_text = text.replace("<think>", "").replace("</think>", "")
+            # Clean residual tags and punctuation
+            clean_text = text.replace("<think>", "").replace("</think>", "").rstrip(' .')
             answer_content += clean_text
             answer_container.markdown(answer_content)
+
+    # Clean and format final output
+    final_answer = answer_content.rstrip(' .')
     
-    return f"<think>{thinking_content}</think>{answer_content}" if thinking_content else answer_content
+    # Ensure proper sentence termination
+    if final_answer and not final_answer.endswith(('.', '!', '?')):
+        final_answer += '.'
+    
+    # Structure output with thinking content
+    if thinking_content.strip():
+        return f"<think>{thinking_content.strip()}</think>{final_answer}"
+    return final_answer
 
 # Sidebar configuration
 with st.sidebar:
@@ -111,10 +122,15 @@ for message in st.session_state.messages:
 
 # User input handling
 if prompt := st.chat_input(disabled=not replicate_api):
-    if (clean_prompt := prompt.strip()):
+    clean_prompt = prompt.strip()
+    
+    # Validate input contains meaningful content
+    if clean_prompt and any(c.isalnum() for c in clean_prompt):
         st.session_state.messages.append({"role": "user", "content": clean_prompt})
         with st.chat_message("user"):
             st.markdown(clean_prompt)
+    elif clean_prompt:
+        st.toast("Message must contain at least one letter or number", icon="⚠️")
 
 # Generate responses
 if st.session_state.messages[-1]["role"] == "user":
@@ -123,7 +139,7 @@ if st.session_state.messages[-1]["role"] == "user":
         processed_response = process_response(response)
         st.session_state.messages.append({"role": "assistant", "content": processed_response})
 
-# Clear chat button (rendered after message processing)
+# Clear chat button (rendered after all processing)
 with st.sidebar:
     st.button(
         'Clear Chat History',
