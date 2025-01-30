@@ -11,6 +11,7 @@ if "messages" not in st.session_state:
 
 # Helper functions
 def clear_chat_history():
+    """Clear chat history"""
     st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
 
 def generate_deepseek_response():
@@ -29,15 +30,15 @@ def generate_deepseek_response():
     )
 
 def process_response(response):
-    """Process streaming response with answer-first display"""
+    """Process streaming response with enhanced cleaning"""
     full_response = ""
     thinking_content = ""
     answer_content = ""
     is_thinking = False
     
     # Containers for display ordering
-    answer_container = st.empty()  # Primary answer display
-    think_container = st.empty()   # Thinking process below
+    answer_container = st.empty()
+    think_container = st.empty()
 
     # Process stream chunks
     for item in response:
@@ -62,19 +63,22 @@ def process_response(response):
             with think_container.expander("Thinking Process", expanded=True):
                 st.markdown(thinking_content)
         else:
-            # Clean residual tags and punctuation
-            clean_text = text.replace("<think>", "").replace("</think>", "").rstrip(' .')
-            answer_content += clean_text
-            answer_container.markdown(answer_content)
+            # Clean from both ends and remove special chars
+            clean_text = text.replace("<think>", "").replace("</think>", "").strip(' .\n\r\t')
+            answer_content += clean_text + ' '
 
     # Final answer processing
-    final_answer = answer_content.rstrip(' .')
+    final_answer = answer_content.strip()
     
-    # Ensure proper sentence termination
-    if final_answer and not final_answer.endswith(('.', '!', '?')):
-        final_answer += '.'
+    # Ensure proper formatting
+    if final_answer:
+        # Add final punctuation if missing
+        if not final_answer.endswith(('.', '!', '?')):
+            final_answer += '.'
+        # Collapse multiple spaces
+        final_answer = ' '.join(final_answer.split())
     
-    # Structure output with answer first
+    # Structure output
     if thinking_content.strip():
         return f"{final_answer}<think>{thinking_content.strip()}</think>"
     return final_answer
@@ -110,25 +114,21 @@ for message in st.session_state.messages:
         content = message["content"]
         
         if "<think>" in content:
-            # Split answer and thinking process
             parts = content.split("<think>")
-            answer_part = parts[0]
+            answer_part = parts[0].strip()
             think_part = parts[1].split("</think>")[0]
             
-            # Display answer first
             st.markdown(answer_part)
-            
-            # Show thinking process in expander
             with st.expander("Thinking Process", expanded=False):
                 st.markdown(think_part)
         else:
-            st.markdown(content)
+            st.markdown(content.strip())
 
 # User input handling
 if prompt := st.chat_input(disabled=not replicate_api):
     clean_prompt = prompt.strip()
     
-    # Validate input contains meaningful content
+    # Validate input
     if clean_prompt and any(c.isalnum() for c in clean_prompt):
         st.session_state.messages.append({"role": "user", "content": clean_prompt})
         with st.chat_message("user"):
