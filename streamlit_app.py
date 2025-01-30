@@ -3,12 +3,12 @@ import replicate
 import os
 
 # App title
-st.set_page_config(page_title="🐳💬 Deepseek R1 Chatbot")
+st.set_page_config(page_title="🐳💬 DeepSeek R1 Chatbot")
 
 # Replicate Credentials
 with st.sidebar:
-    st.title('🐳💬 Deepseek R1 Chatbot')
-    st.write('This chatbot is created using the Deepseek R1 LLM model.')
+    st.title('🐳💬 DeepSeek R1 Chatbot')
+    st.write('This chatbot is created using the DeepSeek R1 LLM model.')
     
     if 'REPLICATE_API_TOKEN' in st.secrets:
         st.success('API key already provided!', icon='✅')
@@ -43,7 +43,7 @@ def clear_chat_history():
 
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
-# Function for generating Deepseek response
+# Function for generating DeepSeek response
 def generate_deepseek_response(prompt_input):
     # Format the conversation history
     string_dialogue = ""
