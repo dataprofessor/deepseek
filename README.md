@@ -10,3 +10,4 @@ Make sure to read [this accompanying blog](https://medium.com/snowflake/how-to-b
 - [How to build a DeepSeek-R1 chatbot](https://medium.com/snowflake/how-to-build-a-deepseek-r1-chatbot-1edbf6e5e9fe)
 - [DeepSeek-R1 GitHub repo](https://github.com/deepseek-ai/DeepSeek-R1)
 - [Announcing DeepSeek-R1 in Preview on Snowflake Cortex AI](https://www.snowflake.com/en/blog/deepseek-preview-snowflake-cortex-ai/)
+- [Running DeepSeek-R1 in Snowpark Container Services: A Complete Guide](https://medium.com/snowflake/running-deepseek-r1-in-snowpark-container-services-a-complete-guide-2b89eb8e2daf)
